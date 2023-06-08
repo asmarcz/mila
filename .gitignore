@@ -1,3 +1,8 @@
 build
 samples/*
 !samples/*.mila
+
+
+# Added by cargo
+
+/target
