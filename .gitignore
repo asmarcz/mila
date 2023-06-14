@@ -6,3 +6,4 @@ samples/*
 # Added by cargo
 
 /target
+.vscode
