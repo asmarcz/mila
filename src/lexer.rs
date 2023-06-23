@@ -4,6 +4,8 @@ use std::{
     str::{Chars, FromStr},
 };
 
+use itertools::{Itertools, PeekingNext};
+
 #[derive(Debug, PartialEq)]
 pub enum Type {
     Array,
@@ -156,8 +158,7 @@ impl Lexer {
         let mut iter = content.chars().peekable();
 
         while iter.peek().is_some() {
-            if iter.peek().is_some_and(|c| c.is_whitespace()) {
-                iter.next();
+            if iter.peeking_next(|c| c.is_whitespace()).is_some() {
                 continue;
             }
             let opt = Self::symbol(&mut iter)?
@@ -177,15 +178,11 @@ impl Lexer {
         if !iter.peek().unwrap().is_numeric() {
             None?
         }
-        let mut number = String::new();
-        while iter.peek().is_some_and(|c| c.is_numeric()) {
-            number.push(iter.next().unwrap());
-        }
+        let mut number = iter
+            .peeking_take_while(|c| c.is_numeric())
+            .collect::<String>();
         let lit = if iter.peek().is_some_and(|c| *c == '.') {
-            number.push(iter.next().unwrap());
-            while iter.peek().is_some_and(|c| c.is_numeric()) {
-                number.push(iter.next().unwrap());
-            }
+            number.extend(iter.peeking_take_while(|c| c.is_numeric()));
             Literal::Double(number.parse().unwrap())
         } else {
             Literal::Integer(number.parse().unwrap())
@@ -197,10 +194,9 @@ impl Lexer {
         if !iter.peek().unwrap().is_alphabetic() {
             None?
         }
-        let mut name = String::new();
-        while iter.peek().is_some_and(|c| c.is_alphanumeric()) {
-            name.push(iter.next().unwrap());
-        }
+        let name = iter
+            .peeking_take_while(|c| c.is_alphanumeric())
+            .collect::<String>();
         let token = if let Ok(keyword) = Keyword::from_str(&name) {
             Token::Keyword(keyword)
         } else if let Ok(r#type) = Type::from_str(&name) {
