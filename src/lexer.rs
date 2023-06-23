@@ -168,31 +168,27 @@ impl Lexer {
     }
 
     fn word(iter: &mut Peekable<Chars>) -> Option<Token> {
-        if !iter.peek().unwrap_or(&'0').is_alphabetic() {
-            None
-        } else {
-            let mut name = String::new();
-            while iter.peek().is_some_and(|c| c.is_alphanumeric()) {
-                name.push(iter.next().unwrap());
-            }
-            let token = if let Ok(keyword) = Keyword::from_str(&name) {
-                Token::Keyword(keyword)
-            } else if let Ok(r#type) = Type::from_str(&name) {
-                Token::Type(r#type)
-            } else if let Ok(op) = BinOp::from_str(&name) {
-                Token::BinaryOperator(op)
-            } else {
-                Token::Identifier(name)
-            };
-            Some(token)
+        if !iter.peek().unwrap().is_alphabetic() {
+            None?
         }
+        let mut name = String::new();
+        while iter.peek().is_some_and(|c| c.is_alphanumeric()) {
+            name.push(iter.next().unwrap());
+        }
+        let token = if let Ok(keyword) = Keyword::from_str(&name) {
+            Token::Keyword(keyword)
+        } else if let Ok(r#type) = Type::from_str(&name) {
+            Token::Type(r#type)
+        } else if let Ok(op) = BinOp::from_str(&name) {
+            Token::BinaryOperator(op)
+        } else {
+            Token::Identifier(name)
+        };
+        Some(token)
     }
 
     fn symbol(iter: &mut Peekable<Chars>) -> Result<Option<Token>, &'static str> {
-        let Some(first) = iter.peek()
-        else { return Ok(None) };
-
-        let symb = match first {
+        let symb = match iter.peek().unwrap() {
             '+' => Token::BinaryOperator(BinOp::Add),
             '=' => {
                 iter.next();
