@@ -84,15 +84,19 @@ pub enum Literal {
     Becomes,
     Colon,
     Comma,
-    Double(f64),
     DoubleDot,
     Dot,
-    Integer(i64),
     LBr,
     LPar,
     RBr,
     RPar,
     Semicolon,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Constant {
+    Integer(i64),
+    Double(f64),
 }
 
 #[derive(Debug, PartialEq)]
@@ -150,6 +154,7 @@ pub enum Token {
     RelationalOperator(RelationalOp),
     Identifier(String),
     Keyword(Keyword),
+    Constant(Constant),
     Literal(Literal),
     Type(Type),
 }
@@ -198,16 +203,16 @@ impl Lexer {
     }
 
     fn number(iter: &mut Peekable<Chars>) -> Option<Token> {
-        let lit = match iter.peek().unwrap() {
+        let constant = match iter.peek().unwrap() {
             c if c.is_numeric() => {
                 let mut number = iter
                     .peeking_take_while(|c| c.is_numeric())
                     .collect::<String>();
                 if iter.peek().is_some_and(|c| *c == '.') {
                     number.extend(iter.peeking_take_while(|c| c.is_numeric()));
-                    Literal::Double(number.parse().unwrap())
+                    Constant::Double(number.parse().unwrap())
                 } else {
-                    Literal::Integer(number.parse().unwrap())
+                    Constant::Integer(number.parse().unwrap())
                 }
             }
             _c @ '$' => {
@@ -215,18 +220,18 @@ impl Lexer {
                 let number = iter
                     .peeking_take_while(|c| c.is_ascii_hexdigit())
                     .collect::<String>();
-                Literal::Integer(i64::from_str_radix(&number, 16).unwrap())
+                Constant::Integer(i64::from_str_radix(&number, 16).unwrap())
             }
             _c @ '&' => {
                 iter.next();
                 let number = iter
                     .peeking_take_while(|&c| c >= '0' && c <= '7')
                     .collect::<String>();
-                Literal::Integer(i64::from_str_radix(&number, 8).unwrap())
+                Constant::Integer(i64::from_str_radix(&number, 8).unwrap())
             }
             _ => None?,
         };
-        Some(Token::Literal(lit))
+        Some(Token::Constant(constant))
     }
 
     fn word(iter: &mut Peekable<Chars>) -> Option<Token> {
@@ -332,9 +337,9 @@ mod tests {
                 Token::Literal(Literal::Colon),
                 Token::Type(Type::Array),
                 Token::Literal(Literal::LBr),
-                Token::Literal(Literal::Integer(1)),
+                Token::Constant(Constant::Integer(1)),
                 Token::Literal(Literal::DoubleDot),
-                Token::Literal(Literal::Integer(10)),
+                Token::Constant(Constant::Integer(10)),
                 Token::Literal(Literal::RBr),
                 Token::Keyword(Keyword::Of),
                 Token::Type(Type::Integer),
