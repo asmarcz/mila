@@ -57,7 +57,7 @@ impl FromStr for BinOp {
             ":=" => Self::Becomes,
             "div" => Self::Div,
             "downto" => Self::Downto,
-            "==" => Self::Eq,
+            "=" => Self::Eq,
             ">=" => Self::Ge,
             ">" => Self::Gt,
             "<=" => Self::Le,
@@ -167,7 +167,7 @@ impl Lexer {
                 }
                 continue;
             }
-            let opt = Self::symbol(&mut iter)?
+            let opt = Self::symbol(&mut iter)
                 .or_else(|| Self::word(&mut iter))
                 .or_else(|| Self::number(&mut iter));
             if let Some(token) = opt {
@@ -235,17 +235,10 @@ impl Lexer {
         Some(token)
     }
 
-    fn symbol(iter: &mut Peekable<Chars>) -> Result<Option<Token>, &'static str> {
+    fn symbol(iter: &mut Peekable<Chars>) -> Option<Token> {
         let symb = match iter.peek().unwrap() {
             '+' => Token::BinaryOperator(BinOp::Add),
-            '=' => {
-                iter.next();
-                if let Some(_c @ '=') = iter.peek() {
-                    Token::BinaryOperator(BinOp::Eq)
-                } else {
-                    Err("Expected '=' to form is equal symbol '=='.")?
-                }
-            }
+            '=' => Token::BinaryOperator(BinOp::Eq),
             ':' => {
                 iter.next();
                 if let Some(_c @ '=') = iter.peek() {
@@ -288,10 +281,10 @@ impl Lexer {
                     Token::Literal(Literal::Dot)
                 }
             }
-            _ => return Ok(None),
+            _ => return None,
         };
         iter.next();
-        Ok(Some(symb))
+        Some(symb)
     }
 }
 
