@@ -28,53 +28,60 @@ impl FromStr for Type {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum BinOp {
-    Add,
+pub enum MultiplyingOp {
     And,
-    Becomes,
     Div,
-    Downto,
-    Eq,
-    Ge,
-    Gt,
-    Le,
-    Lt,
     Mod,
     Mul,
-    Neq,
-    Or,
-    Sub,
-    To,
 }
 
-impl FromStr for BinOp {
+impl FromStr for MultiplyingOp {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
-            "+" => Self::Add,
             "and" => Self::And,
-            ":=" => Self::Becomes,
             "div" => Self::Div,
-            "downto" => Self::Downto,
-            "=" => Self::Eq,
-            ">=" => Self::Ge,
-            ">" => Self::Gt,
-            "<=" => Self::Le,
-            "<" => Self::Lt,
             "mod" => Self::Mod,
             "*" => Self::Mul,
-            "<>" => Self::Neq,
-            "or" => Self::Or,
-            "-" => Self::Sub,
-            "to" => Self::To,
             _ => Err(())?,
         })
     }
 }
 
 #[derive(Debug, PartialEq)]
+pub enum AddingOp {
+    Add,
+    Or,
+    Sub,
+}
+
+impl FromStr for AddingOp {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "+" => Self::Add,
+            "or" => Self::Or,
+            "-" => Self::Sub,
+            _ => Err(())?,
+        })
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum RelationalOp {
+    Eq,
+    Ge,
+    Gt,
+    Le,
+    Lt,
+    Neq,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Literal {
+    Becomes,
     Colon,
     Comma,
     Double(f64),
@@ -93,6 +100,7 @@ pub enum Keyword {
     Begin,
     Const,
     Do,
+    Downto,
     End,
     Else,
     Exit,
@@ -103,6 +111,7 @@ pub enum Keyword {
     Procedure,
     Program,
     Then,
+    To,
     Var,
     While,
 }
@@ -115,6 +124,7 @@ impl FromStr for Keyword {
             "begin" => Self::Begin,
             "const" => Self::Const,
             "do" => Self::Do,
+            "downto" => Self::Downto,
             "end" => Self::End,
             "else" => Self::Else,
             "exit" => Self::Exit,
@@ -125,6 +135,7 @@ impl FromStr for Keyword {
             "procedure" => Self::Procedure,
             "program" => Self::Program,
             "then" => Self::Then,
+            "to" => Self::To,
             "var" => Self::Var,
             "while" => Self::While,
             _ => Err(())?,
@@ -134,7 +145,9 @@ impl FromStr for Keyword {
 
 #[derive(Debug, PartialEq)]
 pub enum Token {
-    BinaryOperator(BinOp),
+    MultiplyingOperator(MultiplyingOp),
+    AddingOperator(AddingOp),
+    RelationalOperator(RelationalOp),
     Identifier(String),
     Keyword(Keyword),
     Literal(Literal),
@@ -227,8 +240,10 @@ impl Lexer {
             Token::Keyword(keyword)
         } else if let Ok(r#type) = Type::from_str(&name) {
             Token::Type(r#type)
-        } else if let Ok(op) = BinOp::from_str(&name) {
-            Token::BinaryOperator(op)
+        } else if let Ok(op) = MultiplyingOp::from_str(&name) {
+            Token::MultiplyingOperator(op)
+        } else if let Ok(op) = AddingOp::from_str(&name) {
+            Token::AddingOperator(op)
         } else {
             Token::Identifier(name)
         };
@@ -237,50 +252,50 @@ impl Lexer {
 
     fn symbol(iter: &mut Peekable<Chars>) -> Option<Token> {
         let symb = match iter.peek().unwrap() {
-            '+' => Token::BinaryOperator(BinOp::Add),
-            '=' => Token::BinaryOperator(BinOp::Eq),
-            ':' => {
+            '+' => Token::AddingOperator(AddingOp::Add),
+            '=' => Token::RelationalOperator(RelationalOp::Eq),
+            ':' => Token::Literal({
                 iter.next();
                 if let Some(_c @ '=') = iter.peek() {
-                    Token::BinaryOperator(BinOp::Becomes)
+                    Literal::Becomes
                 } else {
-                    Token::Literal(Literal::Colon)
+                    Literal::Colon
                 }
-            }
-            '>' => {
+            }),
+            '>' => Token::RelationalOperator({
                 iter.next();
                 if let Some(_c @ '=') = iter.peek() {
-                    Token::BinaryOperator(BinOp::Ge)
+                    RelationalOp::Ge
                 } else {
-                    Token::BinaryOperator(BinOp::Gt)
+                    RelationalOp::Gt
                 }
-            }
-            '<' => {
+            }),
+            '<' => Token::RelationalOperator({
                 iter.next();
                 if let Some(_c @ '=') = iter.peek() {
-                    Token::BinaryOperator(BinOp::Le)
+                    RelationalOp::Le
                 } else if let Some(_c @ '>') = iter.peek() {
-                    Token::BinaryOperator(BinOp::Neq)
+                    RelationalOp::Neq
                 } else {
-                    Token::BinaryOperator(BinOp::Lt)
+                    RelationalOp::Lt
                 }
-            }
-            '*' => Token::BinaryOperator(BinOp::Mul),
-            '-' => Token::BinaryOperator(BinOp::Sub),
+            }),
+            '*' => Token::MultiplyingOperator(MultiplyingOp::Mul),
+            '-' => Token::AddingOperator(AddingOp::Sub),
             ',' => Token::Literal(Literal::Comma),
             '[' => Token::Literal(Literal::LBr),
             '(' => Token::Literal(Literal::LPar),
             ']' => Token::Literal(Literal::RBr),
             ')' => Token::Literal(Literal::RPar),
             ';' => Token::Literal(Literal::Semicolon),
-            '.' => {
+            '.' => Token::Literal({
                 iter.next();
                 if let Some(_c @ '.') = iter.peek() {
-                    Token::Literal(Literal::DoubleDot)
+                    Literal::DoubleDot
                 } else {
-                    Token::Literal(Literal::Dot)
+                    Literal::Dot
                 }
-            }
+            }),
             _ => return None,
         };
         iter.next();
@@ -327,9 +342,9 @@ mod tests {
                 Token::Identifier("writeln".to_string()),
                 Token::Literal(Literal::LPar),
                 Token::Identifier("arg1".to_string()),
-                Token::BinaryOperator(BinOp::Add),
+                Token::AddingOperator(AddingOp::Add),
                 Token::Identifier("arg2".to_string()),
-                Token::BinaryOperator(BinOp::Mod),
+                Token::MultiplyingOperator(MultiplyingOp::Mod),
                 Token::Identifier("arg1".to_string()),
                 Token::Literal(Literal::RPar),
                 Token::Literal(Literal::Semicolon),
