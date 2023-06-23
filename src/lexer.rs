@@ -295,6 +295,19 @@ mod tests {
                 Token::Type(Type::Double),
                 Token::Literal(Literal::RPar),
                 Token::Literal(Literal::Semicolon),
+                Token::Keyword(Keyword::Begin),
+                Token::Keyword(Keyword::Var),
+                Token::Identifier("a".to_string()),
+                Token::Literal(Literal::Colon),
+                Token::Type(Type::Array),
+                Token::Literal(Literal::LBr),
+                Token::Literal(Literal::Integer(1)),
+                Token::Literal(Literal::DoubleDot),
+                Token::Literal(Literal::Integer(10)),
+                Token::Literal(Literal::RBr),
+                Token::Keyword(Keyword::Of),
+                Token::Type(Type::Integer),
+                Token::Literal(Literal::Semicolon),
                 Token::Identifier("writeln".to_string()),
                 Token::Literal(Literal::LPar),
                 Token::Identifier("arg1".to_string()),
@@ -304,6 +317,8 @@ mod tests {
                 Token::Identifier("arg1".to_string()),
                 Token::Literal(Literal::RPar),
                 Token::Literal(Literal::Semicolon),
+                Token::Keyword(Keyword::End),
+                Token::Literal(Literal::Dot),
             ]);
 
             assert_eq!(
@@ -311,7 +326,10 @@ mod tests {
                     r#"
                     program foo123;
                     procedure bar(arg1: integer, arg2: double);
-                    writeln(arg1 + arg2 mod arg1);
+                    begin
+                        var a : array[1 .. 10] of integer;
+                        writeln(arg1 + arg2 mod arg1);
+                    end.
                     "#
                 ),
                 correct
