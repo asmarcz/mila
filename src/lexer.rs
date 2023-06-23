@@ -52,7 +52,7 @@ impl FromStr for BinOp {
             "+" => Self::Add,
             "and" => Self::And,
             ":=" => Self::Becomes,
-            "/" => Self::Div,
+            "div" => Self::Div,
             "downto" => Self::Downto,
             "==" => Self::Eq,
             ">=" => Self::Ge,
@@ -194,7 +194,6 @@ impl Lexer {
 
         let symb = match first {
             '+' => Token::BinaryOperator(BinOp::Add),
-            '/' => Token::BinaryOperator(BinOp::Div),
             '=' => {
                 iter.next();
                 if let Some(_c @ '=') = iter.peek() {
