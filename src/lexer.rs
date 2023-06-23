@@ -1,6 +1,7 @@
 use std::{
     io::Read,
     iter::Peekable,
+    path::Path,
     str::{Chars, FromStr},
 };
 
@@ -143,12 +144,12 @@ pub enum Token {
 pub struct Lexer;
 
 impl Lexer {
-    pub fn tokenize_file(file_name: &str) -> Result<Vec<Token>, String> {
+    pub fn tokenize_file<P: AsRef<Path>>(path: P) -> Result<Vec<Token>, String> {
         let mut file_content = String::new();
-        std::fs::File::open(&file_name)
-            .unwrap()
+        std::fs::File::open(path)
+            .map_err(|err| err.to_string())?
             .read_to_string(&mut file_content)
-            .unwrap();
+            .map_err(|err| err.to_string())?;
         let tokens = Self::tokenize(&file_content.as_str());
         tokens
     }
