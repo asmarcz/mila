@@ -4,7 +4,7 @@
 
 | Name    | Notation  | Description           |
 | ------- | --------  | -----------           |
-| array   | `array [istart .. iend]` | declares an array with length (istart - iend) where istart is the first and iend the last index |
+| array   | `array [istart .. iend] of type` | declares an array with length (istart - iend) where istart is the first and iend the last index |
 | integer | `integer` | 64-bit integer        |
 | double  | `double`  | 64-bit floating-point |
 
@@ -51,6 +51,7 @@ Delimited expressions become expression statements.
 | `program`  | named module              |
 | `var`      | variable declaration      |
 | `const`    | constant definition       |
+| `procedure | procedure declaration     |
 | `function` | function declaration      |
 | `forward`  | forward declaration       |
 | `exit`     | exits function or program |
@@ -82,3 +83,4 @@ Delimited expressions become expression statements.
 | `:`     | type denotation     |
 | `(`     | opening parenthesis |
 | `)`     | closing parenthesis |
+| `,`     | comma  				  |
