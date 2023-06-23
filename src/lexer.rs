@@ -273,6 +273,7 @@ impl Lexer {
                 }
             }
             '*' => Token::BinaryOperator(BinOp::Mul),
+            '-' => Token::BinaryOperator(BinOp::Sub),
             ',' => Token::Literal(Literal::Comma),
             '[' => Token::Literal(Literal::LBr),
             '(' => Token::Literal(Literal::LPar),
