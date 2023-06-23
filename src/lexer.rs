@@ -8,13 +8,13 @@ use std::{
 use itertools::{Itertools, PeekingNext};
 
 #[derive(Debug, PartialEq)]
-pub enum Type {
+pub enum Typename {
     Array,
     Double,
     Integer,
 }
 
-impl FromStr for Type {
+impl FromStr for Typename {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -156,7 +156,7 @@ pub enum Token {
     Keyword(Keyword),
     Constant(Constant),
     Literal(Literal),
-    Type(Type),
+    Typename(Typename),
 }
 
 pub struct Lexer;
@@ -243,8 +243,8 @@ impl Lexer {
             .collect::<String>();
         let token = if let Ok(keyword) = Keyword::from_str(&name) {
             Token::Keyword(keyword)
-        } else if let Ok(r#type) = Type::from_str(&name) {
-            Token::Type(r#type)
+        } else if let Ok(r#type) = Typename::from_str(&name) {
+            Token::Typename(r#type)
         } else if let Ok(op) = MultiplyingOp::from_str(&name) {
             Token::MultiplyingOperator(op)
         } else if let Ok(op) = AddingOp::from_str(&name) {
@@ -324,25 +324,25 @@ mod tests {
                 Token::Literal(Literal::LPar),
                 Token::Identifier("arg1".to_string()),
                 Token::Literal(Literal::Colon),
-                Token::Type(Type::Integer),
+                Token::Typename(Typename::Integer),
                 Token::Literal(Literal::Comma),
                 Token::Identifier("arg2".to_string()),
                 Token::Literal(Literal::Colon),
-                Token::Type(Type::Double),
+                Token::Typename(Typename::Double),
                 Token::Literal(Literal::RPar),
                 Token::Literal(Literal::Semicolon),
                 Token::Keyword(Keyword::Begin),
                 Token::Keyword(Keyword::Var),
                 Token::Identifier("a".to_string()),
                 Token::Literal(Literal::Colon),
-                Token::Type(Type::Array),
+                Token::Typename(Typename::Array),
                 Token::Literal(Literal::LBr),
                 Token::Constant(Constant::Integer(1)),
                 Token::Literal(Literal::DoubleDot),
                 Token::Constant(Constant::Integer(10)),
                 Token::Literal(Literal::RBr),
                 Token::Keyword(Keyword::Of),
-                Token::Type(Type::Integer),
+                Token::Typename(Typename::Integer),
                 Token::Literal(Literal::Semicolon),
                 Token::Identifier("writeln".to_string()),
                 Token::Literal(Literal::LPar),
