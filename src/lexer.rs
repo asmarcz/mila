@@ -158,8 +158,13 @@ impl Lexer {
         let mut tokens: Vec<Token> = vec![];
         let mut iter = content.chars().peekable();
 
+        let mut line_count = 1;
+
         while iter.peek().is_some() {
-            if iter.peeking_next(|c| c.is_whitespace()).is_some() {
+            if let Some(c) = iter.peeking_next(|c| c.is_whitespace()) {
+                if c == '\n' {
+                    line_count += 1;
+                }
                 continue;
             }
             let opt = Self::symbol(&mut iter)?
@@ -168,7 +173,11 @@ impl Lexer {
             if let Some(token) = opt {
                 tokens.push(token);
             } else {
-                Err(format!("Unexpected character '{}'.", iter.peek().unwrap()))?
+                Err(format!(
+                    "Unexpected character '{}' on line {}.",
+                    iter.peek().unwrap(),
+                    line_count
+                ))?
             }
         }
 
