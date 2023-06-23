@@ -17,7 +17,7 @@
 | `+`      | addition              |
 | `-`      | subtraction           |
 | `*`      | multiplication        |
-| `div`    | division              |
+| `div`    | integer division      |
 | `mod`    | modulo                |
 | `:=`     | becomes               |
 | `>=`     | greater than or equal |
