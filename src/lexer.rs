@@ -74,8 +74,10 @@ impl FromStr for BinOp {
 pub enum Literal {
     Colon,
     Comma,
+    Double(f64),
     DoubleDot,
     Dot,
+    Integer(i64),
     LBr,
     LPar,
     RBr,
@@ -158,7 +160,9 @@ impl Lexer {
                 iter.next();
                 continue;
             }
-            let opt = Self::symbol(&mut iter)?.or_else(|| Self::word(&mut iter));
+            let opt = Self::symbol(&mut iter)?
+                .or_else(|| Self::word(&mut iter))
+                .or_else(|| Self::number(&mut iter));
             if let Some(token) = opt {
                 tokens.push(token);
             } else {
@@ -167,6 +171,26 @@ impl Lexer {
         }
 
         Ok(tokens)
+    }
+
+    fn number(iter: &mut Peekable<Chars>) -> Option<Token> {
+        if !iter.peek().unwrap().is_numeric() {
+            None?
+        }
+        let mut number = String::new();
+        while iter.peek().is_some_and(|c| c.is_numeric()) {
+            number.push(iter.next().unwrap());
+        }
+        let lit = if iter.peek().is_some_and(|c| *c == '.') {
+            number.push(iter.next().unwrap());
+            while iter.peek().is_some_and(|c| c.is_numeric()) {
+                number.push(iter.next().unwrap());
+            }
+            Literal::Double(number.parse().unwrap())
+        } else {
+            Literal::Integer(number.parse().unwrap())
+        };
+        Some(Token::Literal(lit))
     }
 
     fn word(iter: &mut Peekable<Chars>) -> Option<Token> {
