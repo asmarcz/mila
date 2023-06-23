@@ -175,17 +175,33 @@ impl Lexer {
     }
 
     fn number(iter: &mut Peekable<Chars>) -> Option<Token> {
-        if !iter.peek().unwrap().is_numeric() {
-            None?
-        }
-        let mut number = iter
-            .peeking_take_while(|c| c.is_numeric())
-            .collect::<String>();
-        let lit = if iter.peek().is_some_and(|c| *c == '.') {
-            number.extend(iter.peeking_take_while(|c| c.is_numeric()));
-            Literal::Double(number.parse().unwrap())
-        } else {
-            Literal::Integer(number.parse().unwrap())
+        let lit = match iter.peek().unwrap() {
+            c if c.is_numeric() => {
+                let mut number = iter
+                    .peeking_take_while(|c| c.is_numeric())
+                    .collect::<String>();
+                if iter.peek().is_some_and(|c| *c == '.') {
+                    number.extend(iter.peeking_take_while(|c| c.is_numeric()));
+                    Literal::Double(number.parse().unwrap())
+                } else {
+                    Literal::Integer(number.parse().unwrap())
+                }
+            }
+            _c @ '$' => {
+                iter.next();
+                let number = iter
+                    .peeking_take_while(|c| c.is_ascii_hexdigit())
+                    .collect::<String>();
+                Literal::Integer(i64::from_str_radix(&number, 16).unwrap())
+            }
+            _c @ '&' => {
+                iter.next();
+                let number = iter
+                    .peeking_take_while(|&c| c >= '0' && c <= '7')
+                    .collect::<String>();
+                Literal::Integer(i64::from_str_radix(&number, 8).unwrap())
+            }
+            _ => None?,
         };
         Some(Token::Literal(lit))
     }
