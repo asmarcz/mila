@@ -53,12 +53,6 @@ impl Into<BinaryOp> for RelationalOp {
     }
 }
 
-// impl<'a> Into<BinaryOp> for &'a RelationalOp {
-//     fn into(self) -> BinaryOp {
-//         (*self).into()
-//     }
-// }
-
 #[derive(Debug)]
 pub enum ExpressionNode {
     Constant(Constant),
