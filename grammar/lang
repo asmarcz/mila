@@ -1,0 +1,94 @@
+Start -> Program Ident Semicolon Block Dot
+
+Block -> Declaration CompoundStatement
+
+Type -> SimpleType
+Type -> ArrayType
+SimpleType -> Integer
+SimpleType -> Double
+ArrayType -> Array LBr Constant DoubleDot Constant RBr Of SimpleType
+TypeSpecifier -> Colon Type
+
+Declaration -> ConstantDeclaration
+Declaration -> VariableDeclaration
+Declaration -> ProcedureDeclaration
+Declaration -> FunctionDeclaration
+
+ConstantDeclaration -> Const Ident Eq Expression Semicolon ConstantDeclarationPrime
+ConstantDeclarationPrime -> Ident Eq Expression Semicolon ConstantDeclarationPrime
+ConstantDeclarationPrime -> ε
+
+VariableDeclaration -> Var Ident VariableDeclarationPrime
+VariableDeclarationPrime -> SingleTypeVariableDeclaration
+VariableDeclarationPrime -> MultiTypeVariableDeclaration
+
+SingleTypeVariableDeclaration -> Comma Ident SingleTypeVariableDeclarationPrime
+SingleTypeVariableDeclarationPrime -> Comma Ident SingleTypeVariableDeclarationPrime
+SingleTypeVariableDeclarationPrime -> TypeSpecifier Semicolon
+
+MultiTypeVariableDeclaration -> TypeSpecifier Semicolon MultiTypeVariableDeclarationPrime
+MultiTypeVariableDeclarationPrime -> Ident TypeSpecifier Semicolon MultiTypeVariableDeclarationPrime
+MultiTypeVariableDeclarationPrime -> ε
+
+ProcedureDeclaration -> Procedure Ident FormalParameterList SubroutineBlock
+
+FunctionDeclaration -> Function Ident FormalParameterList TypeSpecifier SubroutineBlock
+
+SubroutineBlock -> Forward
+SubroutineBlock -> Block
+
+FormalParameterList -> LPar ParameterDeclaration RPar
+ParameterDeclaration -> Ident TypeSpecifier ParameterDeclarationPrime
+ParameterDeclaration -> ε
+ParameterDeclarationPrime -> Semicolon Ident TypeSpecifier ParameterDeclarationPrime
+ParameterDeclarationPrime -> ε
+
+Expression -> SimpleExpression ExpressionPrime
+ExpressionPrime -> RelationalOperator SimpleExpression ExpressionPrime
+ExpressionPrime -> ε
+
+SimpleExpression -> Term SimpleExpressionPrime
+SimpleExpressionPrime -> AddingOperator Term SimpleExpressionPrime
+SimpleExpressionPrime -> ε
+
+Term -> Factor TermPrime
+TermPrime -> MultiplyingOperator Factor TermPrime
+TermPrime -> ε
+
+Factor -> LPar Expression RPar
+Factor -> Constant
+Factor -> Ident FactorPrime
+FactorPrime -> ActualParameterList
+FactorPrime -> ε
+
+ActualParameterList -> LPar ParameterList RPar
+ParameterList -> Expression ParameterListPrime
+ParameterList -> ε
+ParameterListPrime -> Comma Expression ParameterListPrime
+ParameterListPrime -> ε
+
+Statement -> SimpleStatement
+Statement -> StructuredStatement
+
+SimpleStatement -> Ident SimpleStatementPrime
+SimpleStatementPrime -> Becomes Expression
+SimpleStatementPrime -> ActualParameterList
+
+StructuredStatement -> CompoundStatement
+StructuredStatement -> IfStatement
+StructuredStatement -> ForStatement
+StructuredStatement -> WhileStatement
+
+CompoundStatement -> Begin Statement CompoundStatementPrime End
+CompoundStatementPrime -> Semicolon Statement CompoundStatementPrime
+CompoundStatementPrime -> ε
+
+IfStatement -> If Expression Then Statement IfStatementPrime
+IfStatementPrime -> Else Statement
+IfStatementPrime -> ε
+
+ForStatement -> For Ident Becomes Expression RangeDirection Expression Do Statement
+RangeDirection -> Downto
+RangeDirection -> To
+
+WhileStatement -> While Expression Do Statement
