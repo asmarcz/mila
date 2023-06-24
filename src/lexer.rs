@@ -27,7 +27,7 @@ impl FromStr for Typename {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MultiplyingOp {
     And,
     Div,
@@ -49,7 +49,7 @@ impl FromStr for MultiplyingOp {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AddingOp {
     Add,
     Or,
@@ -69,7 +69,7 @@ impl FromStr for AddingOp {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RelationalOp {
     Eq,
     Ge,
@@ -93,7 +93,7 @@ pub enum Literal {
     Semicolon,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Constant {
     Integer(i64),
     Double(f64),
