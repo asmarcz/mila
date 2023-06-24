@@ -183,7 +183,7 @@ impl<'a> Parser<'a> {
     /*
      * Factor -> LPar Expression RPar
      * Factor -> Constant
-     * Factor -> Ident ActualParameterList
+     * Factor -> Ident FactorPrime
      */
     fn factor(&mut self) -> Result<ExpressionNode, String> {
         let Some(token) = self.iter.next()
@@ -198,7 +198,7 @@ impl<'a> Parser<'a> {
                 }
             }
             Token::Constant(c) => Ok(ExpressionNode::Constant(*c)),
-            Token::Identifier(name) => Ok(if let Some(args) = self.actual_parameter_list()? {
+            Token::Identifier(name) => Ok(if let Some(args) = self.factor_prime()? {
                 ExpressionNode::FunctionCall {
                     function_name: name.clone(),
                     arguments: args,
@@ -211,22 +211,38 @@ impl<'a> Parser<'a> {
     }
 
     /*
-     * ActualParameterList -> LPar ParameterList RPar
-     * ActualParameterList -> ε
+     * FactorPrime -> ActualParameterList
+     * FactorPrime -> ε
      */
-    fn actual_parameter_list(&mut self) -> Result<Option<Vec<ExpressionNode>>, String> {
-        if let Some(Token::Literal(Literal::LPar)) = self.iter.peek() {
-            self.iter.next();
-            let res = self.parameter_list()?.map(|mut v| {
-                v.reverse();
-                v
-            });
-            match self.iter.next().ok_or(EOI_ERR)? {
-                Token::Literal(Literal::RPar) => Ok(res),
-                t => unexpected_token!(Token::Literal(Literal::RPar), t),
+    fn factor_prime(&mut self) -> Result<Option<Vec<ExpressionNode>>, String> {
+        Ok(
+            // First(ActualParamaterList) = LPar
+            if let Some(Token::Literal(Literal::LPar)) = self.iter.peek() {
+                Some(self.actual_parameter_list()?)
+            } else {
+                None
+            },
+        )
+    }
+
+    /*
+     * ActualParameterList -> LPar ParameterList RPar
+     */
+    fn actual_parameter_list(&mut self) -> Result<Vec<ExpressionNode>, String> {
+        match self.iter.next().ok_or(EOI_ERR)? {
+            t if *t != Token::Literal(Literal::LPar) => {
+                unexpected_token!(Token::Literal(Literal::LPar), t)?
             }
-        } else {
-            Ok(None)
+            _ => {}
+        }
+        let mut res = match self.parameter_list()? {
+            Some(v) => v,
+            None => vec![],
+        };
+        res.reverse();
+        match self.iter.next().ok_or(EOI_ERR)? {
+            Token::Literal(Literal::RPar) => Ok(res),
+            t => unexpected_token!(Token::Literal(Literal::RPar), t),
         }
     }
 
