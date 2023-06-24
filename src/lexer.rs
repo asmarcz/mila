@@ -170,8 +170,7 @@ impl Lexer {
             .map_err(|err| err.to_string())?
             .read_to_string(&mut file_content)
             .map_err(|err| err.to_string())?;
-        let tokens = Self::tokenize(&file_content.as_str());
-        tokens
+        Self::tokenize(file_content)
     }
 
     pub fn tokenize<S: AsRef<str>>(content: S) -> Result<Vec<Token>, String> {
