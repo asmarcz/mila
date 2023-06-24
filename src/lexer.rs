@@ -102,6 +102,7 @@ pub enum Constant {
 #[derive(Debug, PartialEq)]
 pub enum Keyword {
     Begin,
+    Break,
     Const,
     Do,
     Downto,
@@ -126,6 +127,7 @@ impl FromStr for Keyword {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             "begin" => Self::Begin,
+            "break" => Self::Break,
             "const" => Self::Const,
             "do" => Self::Do,
             "downto" => Self::Downto,
