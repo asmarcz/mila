@@ -1,6 +1,6 @@
 Start -> Program Ident Semicolon Block Dot
 
-Block -> Declaration CompoundStatement
+Block -> DeclarationList CompoundStatement
 
 Type -> SimpleType
 Type -> ArrayType
@@ -9,6 +9,8 @@ SimpleType -> Double
 ArrayType -> Array LBr Constant DoubleDot Constant RBr Of SimpleType
 TypeSpecifier -> Colon Type
 
+DeclarationList -> Declaration DeclarationList
+DeclarationList -> ε
 Declaration -> ConstantDeclaration
 Declaration -> VariableDeclaration
 Declaration -> ProcedureDeclaration
