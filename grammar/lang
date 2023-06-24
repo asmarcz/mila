@@ -59,10 +59,11 @@ TermPrime -> ε
 
 Factor -> LPar Expression RPar
 Factor -> Constant
-Factor -> Ident ActualParameterList
+Factor -> Ident FactorPrime
+FactorPrime -> ActualParameterList
+FactorPrime -> ε
 
 ActualParameterList -> LPar ParameterList RPar
-ActualParameterList -> ε
 ParameterList -> Expression ParameterListPrime
 ParameterList -> ε
 ParameterListPrime -> Comma Expression ParameterListPrime
