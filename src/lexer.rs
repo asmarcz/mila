@@ -174,9 +174,9 @@ impl Lexer {
         tokens
     }
 
-    pub fn tokenize(content: &str) -> Result<Vec<Token>, String> {
+    pub fn tokenize<S: AsRef<str>>(content: S) -> Result<Vec<Token>, String> {
         let mut tokens: Vec<Token> = vec![];
-        let mut iter = content.chars().peekable();
+        let mut iter = content.as_ref().chars().peekable();
 
         let mut line_count = 1;
 
