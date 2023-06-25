@@ -1,4 +1,4 @@
-Start -> Program Ident Semicolon Block Dot
+ProgramStart -> Program Ident Semicolon Block Dot
 
 Block -> DeclarationList CompoundStatement
 
