@@ -1,7 +1,6 @@
 use crate::lexer::{
     AddingOp, Constant, Keyword, Literal, MultiplyingOp, RelationalOp, Token, Typename,
 };
-use core::num;
 use itertools::Itertools;
 use std::{iter::Peekable, ops::RangeInclusive, slice::Iter, vec};
 
@@ -64,8 +63,8 @@ pub enum SimpleType {
 
 #[derive(Clone, Debug)]
 pub struct ArrayType {
-    range: RangeInclusive<i64>,
-    element_type: SimpleType,
+    pub range: RangeInclusive<i64>,
+    pub element_type: SimpleType,
 }
 
 #[derive(Clone, Debug)]
@@ -77,19 +76,25 @@ pub enum Type {
 type ParameterList = Vec<(String, Type)>;
 
 #[derive(Debug)]
+pub struct FunctionDeclaration {
+    function_name: String,
+    parameters: ParameterList,
+    return_type: Type,
+    body: Option<Block>,
+}
+
+#[derive(Debug)]
+pub struct ProcedureDeclaration {
+    procedure_name: String,
+    parameters: ParameterList,
+    body: Option<Block>,
+}
+
+#[derive(Debug)]
 pub enum Declaration {
     Constants(Vec<(String, Expression)>),
-    Function {
-        function_name: String,
-        parameters: ParameterList,
-        return_type: Type,
-        body: Option<Block>,
-    },
-    Procedure {
-        procedure_name: String,
-        parameters: ParameterList,
-        body: Option<Block>,
-    },
+    Function(FunctionDeclaration),
+    Procedure(ProcedureDeclaration),
     Variables(ParameterList),
 }
 
@@ -474,11 +479,11 @@ impl<'a> Parser<'a> {
         grab_literal!(self.iter, Semicolon);
         let body = self.subroutine_block()?;
         grab_literal!(self.iter, Semicolon);
-        Ok(Declaration::Procedure {
+        Ok(Declaration::Procedure(ProcedureDeclaration {
             procedure_name,
             parameters,
             body,
-        })
+        }))
     }
 
     /*
@@ -492,12 +497,12 @@ impl<'a> Parser<'a> {
         grab_literal!(self.iter, Semicolon);
         let body = self.subroutine_block()?;
         grab_literal!(self.iter, Semicolon);
-        Ok(Declaration::Function {
+        Ok(Declaration::Function(FunctionDeclaration {
             function_name,
             parameters,
             return_type,
             body,
-        })
+        }))
     }
 
     /*
