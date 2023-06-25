@@ -1,6 +1,7 @@
 use crate::lexer::{
     AddingOp, Constant, Keyword, Literal, MultiplyingOp, RelationalOp, Token, Typename,
 };
+use core::num;
 use itertools::Itertools;
 use std::{iter::Peekable, ops::RangeInclusive, slice::Iter, vec};
 
@@ -276,7 +277,7 @@ impl<'a> Parser<'a> {
     }
 
     /*
-     * ArrayType -> Array LBr Constant DoubleDot Constant RBr Of SimpleType
+     * ArrayType -> Array LBr ConstantPrime DoubleDot ConstantPrime RBr Of SimpleType
      */
     fn array_type(&mut self) -> ParserResult<ArrayType> {
         match self.iter.next().ok_or(EOI_ERR)? {
@@ -284,14 +285,14 @@ impl<'a> Parser<'a> {
             t => unexpected_token!(Typename::Array, t)?,
         }
         grab_literal!(self.iter, LBr);
-        let start = match self.iter.next().ok_or(EOI_ERR)? {
-            Token::Constant(Constant::Integer(int)) => *int,
-            t => unexpected_token!("Integer", t)?,
+        let start = match self.constant_prime()? {
+            Constant::Integer(int) => int,
+            Constant::Double(_) => unexpected_token!("Integer", "Double")?,
         };
         grab_literal!(self.iter, DoubleDot);
-        let end = match self.iter.next().ok_or(EOI_ERR)? {
-            Token::Constant(Constant::Integer(int)) => *int,
-            t => unexpected_token!("Integer", t)?,
+        let end = match self.constant_prime()? {
+            Constant::Integer(int) => int,
+            Constant::Double(_) => unexpected_token!("Integer", "Double")?,
         };
         grab_literal!(self.iter, RBr);
         grab_keyword!(self.iter, Of);
@@ -637,25 +638,31 @@ impl<'a> Parser<'a> {
 
     /*
      * Factor -> LPar Expression RPar
-     * Factor -> Constant
+     * Factor -> ConstantPrime
      * Factor -> Ident FactorPrime
      */
     fn factor(&mut self) -> ParserResult<Expression> {
-        let Some(token) = self.iter.next()
+        let Some(token) = self.iter.peek()
         else { Err(EOI_ERR)? };
 
-        match token {
+        Ok(match token {
             Token::Literal(Literal::LPar) => {
+                self.iter.next();
                 let res = self.expression()?;
                 match self.iter.next().ok_or(EOI_ERR)? {
-                    Token::Literal(Literal::RPar) => Ok(res),
-                    t => unexpected_token!(Token::Literal(Literal::RPar), t),
+                    Token::Literal(Literal::RPar) => res,
+                    t => unexpected_token!(Token::Literal(Literal::RPar), t)?,
                 }
             }
-            Token::Constant(c) => Ok(Expression::Constant(*c)),
-            Token::Identifier(name) => self.factor_prime(name.clone()),
-            _ => unexpected_token!("Factor", token),
-        }
+            Token::Constant(_) | Token::AddingOperator(AddingOp::Sub) => {
+                Expression::Constant(self.constant_prime()?)
+            }
+            Token::Identifier(name) => {
+                self.iter.next();
+                self.factor_prime(name.clone())?
+            }
+            _ => unexpected_token!("Factor", token)?,
+        })
     }
 
     /*
@@ -679,6 +686,22 @@ impl<'a> Parser<'a> {
                 arguments: self.actual_parameter_list()?,
             },
             _ => Expression::Variable(name),
+        })
+    }
+
+    /*
+     * ConstantPrime -> Constant
+     * ConstantPrime -> Sub Constant
+     */
+    fn constant_prime(&mut self) -> ParserResult<Constant> {
+        Ok(match self.iter.next().ok_or(EOI_ERR)? {
+            Token::Constant(c) => *c,
+            Token::AddingOperator(AddingOp::Sub) => match self.iter.next().ok_or(EOI_ERR)? {
+                Token::Constant(Constant::Double(num)) => Constant::Double(-num),
+                Token::Constant(Constant::Integer(num)) => Constant::Integer(-num),
+                t => unexpected_token!("Constant after Sub", t)?,
+            },
+            t => unexpected_token!("ConstantPrime", t)?,
         })
     }
 

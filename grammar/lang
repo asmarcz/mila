@@ -6,7 +6,7 @@ Type -> SimpleType
 Type -> ArrayType
 SimpleType -> Integer
 SimpleType -> Double
-ArrayType -> Array LBr Constant DoubleDot Constant RBr Of SimpleType
+ArrayType -> Array LBr ConstantPrime DoubleDot ConstantPrime RBr Of SimpleType
 TypeSpecifier -> Colon Type
 
 DeclarationList -> Declaration DeclarationList
@@ -58,11 +58,14 @@ TermPrime -> MultiplyingOperator Factor TermPrime
 TermPrime -> ε
 
 Factor -> LPar Expression RPar
-Factor -> Constant
+Factor -> ConstantPrime
 Factor -> Ident FactorPrime
 FactorPrime -> LBr Expression RBr
 FactorPrime -> ActualParameterList
 FactorPrime -> ε
+
+ConstantPrime -> Constant
+ConstantPrime -> Sub Constant
 
 ActualParameterList -> LPar ParameterList RPar
 ParameterList -> Expression ParameterListPrime
