@@ -31,14 +31,3 @@ pub fn generate_ir(program: Program) -> GeneratorResult<String> {
     let mut llvm_generator = LLVMGenerator::new(&context);
     llvm_generator.generate_ir(program)
 }
-
-fn foo() {
-    let context = Context::create();
-    let builder = context.create_builder();
-    let module = context.create_module("main_module");
-    let main_function = module.add_function("main", context.i32_type().fn_type(&[], false), None);
-    let entry = context.append_basic_block(main_function, "entry");
-    builder.position_at_end(entry);
-    builder.build_return(Some(&context.i32_type().const_int(42, false)));
-    println!("{}", module.print_to_string().to_string());
-}
