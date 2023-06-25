@@ -94,6 +94,10 @@ pub enum Declaration {
 
 #[derive(Debug)]
 pub enum Expression {
+    ArrayAccess {
+        array_name: String,
+        index: Box<Expression>,
+    },
     Constant(Constant),
     BinaryOperation {
         operator: BinaryOp,
@@ -115,9 +119,10 @@ pub enum RangeDirection {
 
 #[derive(Debug)]
 pub enum Statement {
-    Assignment {
-        variable_name: String,
-        expression: Expression,
+    ArrayAssignment {
+        array_name: String,
+        index: Expression,
+        value: Expression,
     },
     Compound(Vec<Statement>),
     Break,
@@ -138,6 +143,10 @@ pub enum Statement {
     ProcedureCall {
         procedure_name: String,
         arguments: Vec<Expression>,
+    },
+    VariableAssignment {
+        variable_name: String,
+        value: Expression,
     },
     While {
         condition: Expression,
@@ -643,31 +652,33 @@ impl<'a> Parser<'a> {
                 }
             }
             Token::Constant(c) => Ok(Expression::Constant(*c)),
-            Token::Identifier(name) => Ok(if let Some(args) = self.factor_prime()? {
-                Expression::FunctionCall {
-                    function_name: name.clone(),
-                    arguments: args,
-                }
-            } else {
-                Expression::Variable(name.clone())
-            }),
+            Token::Identifier(name) => self.factor_prime(name.clone()),
             _ => unexpected_token!("Factor", token),
         }
     }
 
     /*
+     * FactorPrime -> LBr Expression RBr
      * FactorPrime -> ActualParameterList
      * FactorPrime -> ε
      */
-    fn factor_prime(&mut self) -> ParserResult<Option<Vec<Expression>>> {
-        Ok(
-            // First(ActualParamaterList) = LPar
-            if let Some(Token::Literal(Literal::LPar)) = self.iter.peek() {
-                Some(self.actual_parameter_list()?)
-            } else {
-                None
+    fn factor_prime(&mut self, name: String) -> ParserResult<Expression> {
+        Ok(match self.iter.peek() {
+            Some(Token::Literal(Literal::LBr)) => {
+                self.iter.next();
+                let index = self.expression()?;
+                grab_literal!(self.iter, RBr);
+                Expression::ArrayAccess {
+                    array_name: name,
+                    index: Box::new(index),
+                }
+            }
+            Some(Token::Literal(Literal::LPar)) => Expression::FunctionCall {
+                function_name: name,
+                arguments: self.actual_parameter_list()?,
             },
-        )
+            _ => Expression::Variable(name),
+        })
     }
 
     /*
@@ -760,23 +771,55 @@ impl<'a> Parser<'a> {
     }
 
     /*
-     * SimpleStatementPrime -> Becomes Expression
+     * SimpleStatementPrime -> AssignmentStatement
      * SimpleStatementPrime -> ActualParameterList
      */
     fn simple_statement_prime(&mut self, name: String) -> ParserResult<Statement> {
         Ok(match self.iter.peek().ok_or(EOI_ERR)? {
-            Token::Literal(Literal::Becomes) => {
-                self.iter.next();
-                Statement::Assignment {
-                    variable_name: name,
-                    expression: self.expression()?,
-                }
+            Token::Literal(Literal::LBr) | Token::Literal(Literal::Becomes) => {
+                self.assignment_statement(name)?
             }
             Token::Literal(Literal::LPar) => Statement::ProcedureCall {
                 procedure_name: name,
                 arguments: self.actual_parameter_list()?,
             },
             t => unexpected_token!("Becomes or ActualParameterList", t)?,
+        })
+    }
+
+    /*
+     * AssignmentStatement -> AssignmentStatementPrime Becomes Expression
+     */
+    fn assignment_statement(&mut self, name: String) -> ParserResult<Statement> {
+        let opt = self.assignment_statement_prime()?;
+        grab_literal!(self.iter, Becomes);
+        Ok(if let Some(index) = opt {
+            Statement::ArrayAssignment {
+                array_name: name,
+                index,
+                value: self.expression()?,
+            }
+        } else {
+            Statement::VariableAssignment {
+                variable_name: name,
+                value: self.expression()?,
+            }
+        })
+    }
+
+    /*
+     * AssignmentStatementPrime -> LBr Expression RBr
+     * AssignmentStatementPrime -> ε
+     */
+    fn assignment_statement_prime(&mut self) -> ParserResult<Option<Expression>> {
+        Ok(match self.iter.peek() {
+            Some(Token::Literal(Literal::LBr)) => {
+                self.iter.next();
+                let expr = self.expression()?;
+                grab_literal!(self.iter, RBr);
+                Some(expr)
+            }
+            _ => None,
         })
     }
 

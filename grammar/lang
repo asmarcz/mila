@@ -60,6 +60,7 @@ TermPrime -> ε
 Factor -> LPar Expression RPar
 Factor -> Constant
 Factor -> Ident FactorPrime
+FactorPrime -> LBr Expression RBr
 FactorPrime -> ActualParameterList
 FactorPrime -> ε
 
@@ -76,8 +77,12 @@ Statement -> Exit
 Statement -> ε
 
 SimpleStatement -> Ident SimpleStatementPrime
-SimpleStatementPrime -> Becomes Expression
+SimpleStatementPrime -> AssignmentStatement
 SimpleStatementPrime -> ActualParameterList
+
+AssignmentStatement -> AssignmentStatementPrime Becomes Expression
+AssignmentStatementPrime -> LBr Expression RBr
+AssignmentStatementPrime -> ε
 
 StructuredStatement -> CompoundStatement
 StructuredStatement -> IfStatement
