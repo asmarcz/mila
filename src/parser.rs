@@ -813,11 +813,15 @@ impl<'a> Parser<'a> {
      */
     fn if_statement(&mut self) -> ParserResult<Statement> {
         match self.iter.next().ok_or(EOI_ERR)? {
-            Token::Keyword(Keyword::If) => Ok(Statement::If {
-                condition: self.expression()?,
-                true_branch: Box::new(self.statement()?),
-                false_branch: self.if_statement_prime()?.map(Box::new),
-            }),
+            Token::Keyword(Keyword::If) => {
+                let condition = self.expression()?;
+                grab_keyword!(self.iter, Then);
+                Ok(Statement::If {
+                    condition,
+                    true_branch: Box::new(self.statement()?),
+                    false_branch: self.if_statement_prime()?.map(Box::new),
+                })
+            }
             t => unexpected_token!(Token::Keyword(Keyword::If), t),
         }
     }
@@ -828,7 +832,10 @@ impl<'a> Parser<'a> {
      */
     fn if_statement_prime(&mut self) -> ParserResult<Option<Statement>> {
         Ok(match self.iter.peek() {
-            Some(Token::Keyword(Keyword::Else)) => Some(self.statement()?),
+            Some(Token::Keyword(Keyword::Else)) => {
+                self.iter.next();
+                Some(self.statement()?)
+            }
             _ => None,
         })
     }
