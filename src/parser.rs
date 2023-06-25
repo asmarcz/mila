@@ -354,6 +354,7 @@ impl<'a> Parser<'a> {
         constants: &mut Vec<(String, Expression)>,
     ) -> ParserResult<()> {
         if let Some(Token::Identifier(name)) = self.iter.peek() {
+            self.iter.next();
             match self.iter.next().ok_or(EOI_ERR)? {
                 Token::RelationalOperator(RelationalOp::Eq) => {}
                 t => unexpected_token!(RelationalOp::Eq, t)?,
