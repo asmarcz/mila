@@ -410,8 +410,9 @@ impl<'a> Parser<'a> {
         &mut self,
         names: &mut Vec<String>,
     ) -> ParserResult<Type> {
-        match self.iter.next().ok_or(EOI_ERR)? {
+        match self.iter.peek().ok_or(EOI_ERR)? {
             Token::Literal(Literal::Comma) => {
+                self.iter.next();
                 names.push(extract_identifier!(self.iter));
                 self.single_type_variable_declaration_prime(names)
             }
