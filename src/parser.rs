@@ -1,6 +1,6 @@
 use std::{iter::Peekable, slice::Iter, vec};
 
-use crate::lexer::{AddingOp, Constant, Literal, MultiplyingOp, RelationalOp, Token};
+use crate::lexer::{AddingOp, Constant, Keyword, Literal, MultiplyingOp, RelationalOp, Token};
 
 #[derive(Debug)]
 pub enum BinaryOp {
@@ -69,8 +69,44 @@ pub enum ExpressionNode {
 }
 
 #[derive(Debug)]
+pub enum RangeDirection {
+    Down,
+    Up,
+}
+
+#[derive(Debug)]
+pub enum StatementNode {
+    Assignment {
+        variable_name: String,
+        expression: ExpressionNode,
+    },
+    Compound(Vec<StatementNode>),
+    If {
+        condition: ExpressionNode,
+        true_branch: Box<StatementNode>,
+        false_branch: Option<Box<StatementNode>>,
+    },
+    For {
+        control_variable: String,
+        initial_value: ExpressionNode,
+        range_direction: RangeDirection,
+        final_value: ExpressionNode,
+        body: Box<StatementNode>,
+    },
+    ProcedureCall {
+        procedure_name: String,
+        arguments: Vec<ExpressionNode>,
+    },
+    While {
+        condition: ExpressionNode,
+        body: Box<StatementNode>,
+    },
+}
+
+#[derive(Debug)]
 pub enum Node {
     Expression(ExpressionNode),
+    Statement(StatementNode),
 }
 
 const EOI_ERR: &str = "Unexpected EOI.";
@@ -79,6 +115,15 @@ macro_rules! unexpected_token {
     ($($arg:tt)*) => {{
         Err(format!("Expected '{:#?}', got '{:#?}' instead.", $($arg)*))
     }}
+}
+
+macro_rules! grab_keyword {
+    ($iter:expr, $arg:tt) => {{
+        match $iter.next().ok_or(EOI_ERR)? {
+            Token::Keyword(Keyword::$arg) => {}
+            t => unexpected_token!(Token::Keyword(Keyword::$arg), t)?,
+        }
+    }};
 }
 
 pub struct Parser<'a> {
@@ -280,5 +325,166 @@ impl<'a> Parser<'a> {
             }
             _ => Ok(None),
         }
+    }
+
+    /*
+     * Statement -> SimpleStatement
+     * Statement -> StructuredStatement
+     */
+    fn statement(&mut self) -> Result<StatementNode, String> {
+        match self.iter.peek().ok_or(EOI_ERR)? {
+            Token::Identifier(_) => self.simple_statement(),
+            Token::Keyword(Keyword::Begin | Keyword::If | Keyword::For | Keyword::While) => {
+                self.structured_statement()
+            }
+            t => unexpected_token!("Identifier or Begin or If or For or While", t),
+        }
+    }
+
+    /*
+     * SimpleStatement -> Ident SimpleStatementPrime
+     */
+    fn simple_statement(&mut self) -> Result<StatementNode, String> {
+        match self.iter.next().ok_or(EOI_ERR)? {
+            Token::Identifier(name) => self.simple_statement_prime(name.clone()),
+            t => unexpected_token!("Identifier", t),
+        }
+    }
+
+    /*
+     * SimpleStatementPrime -> Becomes Expression
+     * SimpleStatementPrime -> ActualParameterList
+     */
+    fn simple_statement_prime(&mut self, name: String) -> Result<StatementNode, String> {
+        Ok(match self.iter.peek().ok_or(EOI_ERR)? {
+            Token::Literal(Literal::Becomes) => {
+                self.iter.next();
+                StatementNode::Assignment {
+                    variable_name: name,
+                    expression: self.expression()?,
+                }
+            }
+            Token::Literal(Literal::LPar) => StatementNode::ProcedureCall {
+                procedure_name: name,
+                arguments: self.actual_parameter_list()?,
+            },
+            t => unexpected_token!("Becomes or ActualParameterList", t)?,
+        })
+    }
+
+    /*
+     * StructuredStatement -> CompoundStatement
+     * StructuredStatement -> IfStatement
+     * StructuredStatement -> ForStatement
+     * StructuredStatement -> WhileStatement
+     */
+    fn structured_statement(&mut self) -> Result<StatementNode, String> {
+        match self.iter.peek().ok_or(EOI_ERR)? {
+            Token::Keyword(Keyword::Begin) => self.compound_statement(),
+            Token::Keyword(Keyword::If) => self.if_statement(),
+            Token::Keyword(Keyword::For) => self.for_statement(),
+            Token::Keyword(Keyword::While) => self.while_statement(),
+            t => unexpected_token!("Begin or If or For or While", t),
+        }
+    }
+
+    /*
+     * CompoundStatement -> Begin Statement CompoundStatementPrime End
+     */
+    fn compound_statement(&mut self) -> Result<StatementNode, String> {
+        grab_keyword!(self.iter, Begin);
+        let mut statements = vec![self.statement()?];
+        self.compound_statement_prime(&mut statements)?;
+        grab_keyword!(self.iter, End);
+        Ok(StatementNode::Compound(statements))
+    }
+
+    /*
+     * CompoundStatementPrime -> Semicolon Statement CompoundStatementPrime
+     * CompoundStatementPrime -> ε
+     */
+    fn compound_statement_prime(
+        &mut self,
+        statements: &mut Vec<StatementNode>,
+    ) -> Result<(), String> {
+        match self.iter.peek() {
+            Some(Token::Literal(Literal::Semicolon)) => {
+                self.iter.next();
+                statements.push(self.statement()?);
+                self.compound_statement_prime(statements)
+            }
+            _ => Ok(()),
+        }
+    }
+
+    /*
+     * IfStatement -> If Expression Then Statement IfStatementPrime
+     */
+    fn if_statement(&mut self) -> Result<StatementNode, String> {
+        match self.iter.next().ok_or(EOI_ERR)? {
+            Token::Keyword(Keyword::If) => Ok(StatementNode::If {
+                condition: self.expression()?,
+                true_branch: Box::new(self.statement()?),
+                false_branch: self.if_statement_prime()?.map(Box::new),
+            }),
+            t => unexpected_token!(Token::Keyword(Keyword::If), t),
+        }
+    }
+
+    /*
+     * IfStatementPrime -> Else Statement
+     * IfStatementPrime -> ε
+     */
+    fn if_statement_prime(&mut self) -> Result<Option<StatementNode>, String> {
+        Ok(match self.iter.peek() {
+            Some(Token::Keyword(Keyword::Else)) => Some(self.statement()?),
+            _ => None,
+        })
+    }
+
+    /*
+     * ForStatement -> For Ident Becomes Expression RangeDirection Expression Do Statement
+     */
+    fn for_statement(&mut self) -> Result<StatementNode, String> {
+        grab_keyword!(self.iter, For);
+        let control_variable = match self.iter.next().ok_or(EOI_ERR)? {
+            Token::Identifier(name) => name.clone(),
+            t => unexpected_token!("Identifier", t)?,
+        };
+        match self.iter.next().ok_or(EOI_ERR)? {
+            Token::Literal(Literal::Becomes) => {}
+            t => unexpected_token!(Token::Literal(Literal::Becomes), t)?,
+        }
+        let initial_value = self.expression()?;
+        let range_direction = match self.iter.next().ok_or(EOI_ERR)? {
+            Token::Keyword(Keyword::Downto) => RangeDirection::Down,
+            Token::Keyword(Keyword::To) => RangeDirection::Up,
+            t => unexpected_token!(
+                vec![Token::Keyword(Keyword::Downto), Token::Keyword(Keyword::To)],
+                t
+            )?,
+        };
+        let final_value = self.expression()?;
+        grab_keyword!(self.iter, Do);
+        Ok(StatementNode::For {
+            control_variable,
+            initial_value,
+            range_direction,
+            final_value,
+            body: Box::new(self.statement()?),
+        })
+    }
+
+    /*
+     * WhileStatement -> While Expression Do Statement
+     */
+    fn while_statement(&mut self) -> Result<StatementNode, String> {
+        grab_keyword!(self.iter, While);
+        let condition = self.expression()?;
+        grab_keyword!(self.iter, Do);
+        Ok(StatementNode::While {
+            condition,
+            body: Box::new(self.statement()?),
+        })
     }
 }
