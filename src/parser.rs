@@ -1,6 +1,8 @@
-use std::{iter::Peekable, slice::Iter, vec};
-
-use crate::lexer::{AddingOp, Constant, Keyword, Literal, MultiplyingOp, RelationalOp, Token};
+use crate::lexer::{
+    AddingOp, Constant, Keyword, Literal, MultiplyingOp, RelationalOp, Token, Typename,
+};
+use itertools::Itertools;
+use std::{iter::Peekable, ops::RangeInclusive, slice::Iter, vec};
 
 #[derive(Debug)]
 pub enum BinaryOp {
@@ -51,6 +53,43 @@ impl Into<BinaryOp> for RelationalOp {
             Self::Neq => BinaryOp::Neq,
         }
     }
+}
+
+#[derive(Clone, Debug)]
+pub enum SimpleType {
+    Double,
+    Integer,
+}
+
+#[derive(Clone, Debug)]
+pub struct ArrayType {
+    range: RangeInclusive<i64>,
+    element_type: SimpleType,
+}
+
+#[derive(Clone, Debug)]
+pub enum Type {
+    Array(ArrayType),
+    Simple(SimpleType),
+}
+
+type ParameterList = Vec<(String, Type)>;
+
+#[derive(Debug)]
+pub enum Declaration {
+    Constants(Vec<(String, Expression)>),
+    Function {
+        function_name: String,
+        parameters: ParameterList,
+        return_type: Type,
+        body: Option<Block>,
+    },
+    Procedure {
+        procedure_name: String,
+        parameters: ParameterList,
+        body: Option<Block>,
+    },
+    Variables(ParameterList),
 }
 
 #[derive(Debug)]
@@ -104,9 +143,15 @@ pub enum Statement {
 }
 
 #[derive(Debug)]
-pub enum Node {
-    Expression(Expression),
-    Statement(Statement),
+pub struct Block {
+    declarations: Vec<Declaration>,
+    body: Statement,
+}
+
+#[derive(Debug)]
+pub struct Program {
+    name: String,
+    body: Block,
 }
 
 const EOI_ERR: &str = "Unexpected EOI.";
@@ -157,8 +202,335 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> ParserResult<Node> {
-        Ok(Node::Expression(self.expression()?))
+    pub fn parse(&mut self) -> ParserResult<Program> {
+        self.program_start()
+    }
+
+    /*
+     * ProgramStart -> Program Ident Semicolon Block Dot
+     */
+    fn program_start(&mut self) -> ParserResult<Program> {
+        grab_keyword!(self.iter, Program);
+        let name = extract_identifier!(self.iter);
+        grab_literal!(self.iter, Semicolon);
+        let body = self.block()?;
+        grab_literal!(self.iter, Dot);
+        Ok(Program { name, body })
+    }
+
+    /*
+     * Block -> DeclarationList CompoundStatement
+     */
+    fn block(&mut self) -> ParserResult<Block> {
+        let declarations = match self.iter.peek().ok_or(EOI_ERR)? {
+            Token::Keyword(
+                Keyword::Const | Keyword::Var | Keyword::Procedure | Keyword::Function,
+            ) => self.declaration_list()?,
+            Token::Keyword(Keyword::Begin) => vec![],
+            t => unexpected_token!("Block", t)?,
+        };
+        Ok(Block {
+            declarations,
+            body: self.compound_statement()?,
+        })
+    }
+
+    /*
+     * Type -> SimpleType
+     * Type -> ArrayType
+     */
+    fn r#type(&mut self) -> ParserResult<Type> {
+        Ok(match self.iter.peek().ok_or(EOI_ERR)? {
+            Token::Typename(type_name) => match type_name {
+                Typename::Array => Type::Array(self.array_type()?),
+                _ => Type::Simple(self.simple_type()?),
+            },
+            t => unexpected_token!(
+                vec![Typename::Array, Typename::Double, Typename::Integer],
+                t
+            )?,
+        })
+    }
+    /*
+     * SimpleType -> Integer
+     * SimpleType -> Double
+     */
+    fn simple_type(&mut self) -> ParserResult<SimpleType> {
+        Ok(match self.iter.next().ok_or(EOI_ERR)? {
+            Token::Typename(Typename::Double) => SimpleType::Double,
+            Token::Typename(Typename::Integer) => SimpleType::Integer,
+            t => unexpected_token!(vec![Typename::Double, Typename::Integer], t)?,
+        })
+    }
+
+    /*
+     * ArrayType -> Array LBr Constant DoubleDot Constant RBr Of SimpleType
+     */
+    fn array_type(&mut self) -> ParserResult<ArrayType> {
+        match self.iter.next().ok_or(EOI_ERR)? {
+            Token::Typename(Typename::Array) => {}
+            t => unexpected_token!(Typename::Array, t)?,
+        }
+        grab_literal!(self.iter, LBr);
+        let start = match self.iter.next().ok_or(EOI_ERR)? {
+            Token::Constant(Constant::Integer(int)) => *int,
+            t => unexpected_token!("Integer", t)?,
+        };
+        grab_literal!(self.iter, DoubleDot);
+        let end = match self.iter.next().ok_or(EOI_ERR)? {
+            Token::Constant(Constant::Integer(int)) => *int,
+            t => unexpected_token!("Integer", t)?,
+        };
+        grab_literal!(self.iter, RBr);
+        grab_keyword!(self.iter, Of);
+        Ok(ArrayType {
+            range: RangeInclusive::new(start, end),
+            element_type: self.simple_type()?,
+        })
+    }
+
+    /*
+     * TypeSpecifier -> Colon Type
+     */
+    fn type_specifier(&mut self) -> ParserResult<Type> {
+        grab_literal!(self.iter, Colon);
+        self.r#type()
+    }
+
+    /*
+     * DeclarationList -> Declaration DeclarationList
+     * DeclarationList -> ε
+     */
+    fn declaration_list(&mut self) -> ParserResult<Vec<Declaration>> {
+        let mut declarations = vec![];
+        while let Some(Token::Keyword(
+            Keyword::Const | Keyword::Var | Keyword::Procedure | Keyword::Function,
+        )) = self.iter.peek()
+        {
+            declarations.push(self.declaration()?);
+        }
+        Ok(declarations)
+    }
+
+    /*
+     * Declaration -> ConstantDeclaration
+     * Declaration -> VariableDeclaration
+     * Declaration -> ProcedureDeclaration
+     * Declaration -> FunctionDeclaration
+     */
+    fn declaration(&mut self) -> ParserResult<Declaration> {
+        match self.iter.peek().ok_or(EOI_ERR)? {
+            Token::Keyword(Keyword::Const) => self.constant_declaration(),
+            Token::Keyword(Keyword::Var) => self.variable_declaration(),
+            Token::Keyword(Keyword::Procedure) => self.procedure_declaration(),
+            Token::Keyword(Keyword::Function) => self.function_declaration(),
+            t => unexpected_token!("Declaration", t),
+        }
+    }
+
+    /*
+     * ConstantDeclaration -> Const Ident Eq Expression Semicolon ConstantDeclarationPrime
+     */
+    fn constant_declaration(&mut self) -> ParserResult<Declaration> {
+        grab_keyword!(self.iter, Const);
+        let name = extract_identifier!(self.iter);
+        match self.iter.next().ok_or(EOI_ERR)? {
+            Token::RelationalOperator(RelationalOp::Eq) => {}
+            t => unexpected_token!(RelationalOp::Eq, t)?,
+        }
+        let mut constants = vec![(name, self.expression()?)];
+        grab_literal!(self.iter, Semicolon);
+        self.constant_declaration_prime(&mut constants)?;
+        Ok(Declaration::Constants(constants))
+    }
+
+    /*
+     * ConstantDeclarationPrime -> Ident Eq Expression Semicolon ConstantDeclarationPrime
+     * ConstantDeclarationPrime -> ε
+     */
+    fn constant_declaration_prime(
+        &mut self,
+        constants: &mut Vec<(String, Expression)>,
+    ) -> ParserResult<()> {
+        if let Some(Token::Identifier(name)) = self.iter.peek() {
+            match self.iter.next().ok_or(EOI_ERR)? {
+                Token::RelationalOperator(RelationalOp::Eq) => {}
+                t => unexpected_token!(RelationalOp::Eq, t)?,
+            }
+            constants.push((name.clone(), self.expression()?));
+            grab_literal!(self.iter, Semicolon);
+            self.constant_declaration_prime(constants)
+        } else {
+            Ok(())
+        }
+    }
+
+    /*
+     * VariableDeclaration -> Var Ident VariableDeclarationPrime
+     */
+    fn variable_declaration(&mut self) -> ParserResult<Declaration> {
+        grab_keyword!(self.iter, Var);
+        let name = extract_identifier!(self.iter);
+        self.variable_declaration_prime(name)
+    }
+
+    /*
+     * VariableDeclarationPrime -> SingleTypeVariableDeclaration
+     * VariableDeclarationPrime -> MultiTypeVariableDeclaration
+     */
+    fn variable_declaration_prime(&mut self, name: String) -> ParserResult<Declaration> {
+        match self.iter.peek().ok_or(EOI_ERR)? {
+            Token::Literal(Literal::Comma) => self.single_type_variable_declaration(name),
+            Token::Literal(Literal::Colon) => self.multi_type_variable_declaration(name),
+            t => unexpected_token!(vec![Literal::Comma, Literal::Colon], t),
+        }
+    }
+
+    /*
+     * SingleTypeVariableDeclaration -> Comma Ident SingleTypeVariableDeclarationPrime
+     */
+    fn single_type_variable_declaration(&mut self, name: String) -> ParserResult<Declaration> {
+        grab_literal!(self.iter, Comma);
+        let mut names = vec![name, extract_identifier!(self.iter)];
+        let t: Type = self.single_type_variable_declaration_prime(&mut names)?;
+        // TODO How to do this without cloning?
+        Ok(Declaration::Variables(
+            names.iter().map(|n| (n.clone(), t.clone())).collect_vec(),
+        ))
+    }
+
+    /*
+     * SingleTypeVariableDeclarationPrime -> Comma Ident SingleTypeVariableDeclarationPrime
+     * SingleTypeVariableDeclarationPrime -> TypeSpecifier Semicolon
+     */
+    fn single_type_variable_declaration_prime(
+        &mut self,
+        names: &mut Vec<String>,
+    ) -> ParserResult<Type> {
+        match self.iter.next().ok_or(EOI_ERR)? {
+            Token::Literal(Literal::Comma) => {
+                names.push(extract_identifier!(self.iter));
+                self.single_type_variable_declaration_prime(names)
+            }
+            Token::Literal(Literal::Colon) => {
+                let t: Type = self.type_specifier()?;
+                grab_literal!(self.iter, Semicolon);
+                Ok(t)
+            }
+            t => unexpected_token!(vec![Literal::Comma, Literal::Colon], t),
+        }
+    }
+
+    /*
+     * MultiTypeVariableDeclaration -> TypeSpecifier Semicolon MultiTypeVariableDeclarationPrime
+     */
+    fn multi_type_variable_declaration(&mut self, name: String) -> ParserResult<Declaration> {
+        let mut variables = vec![(name, self.type_specifier()?)];
+        grab_literal!(self.iter, Semicolon);
+        self.multi_type_variable_declaration_prime(&mut variables)?;
+        Ok(Declaration::Variables(variables))
+    }
+
+    /*
+     * MultiTypeVariableDeclarationPrime -> Ident TypeSpecifier Semicolon MultiTypeVariableDeclarationPrime
+     * MultiTypeVariableDeclarationPrime -> ε
+     */
+    fn multi_type_variable_declaration_prime(
+        &mut self,
+        variables: &mut ParameterList,
+    ) -> ParserResult<()> {
+        if let Some(Token::Identifier(name)) = self.iter.peek() {
+            variables.push((name.clone(), self.type_specifier()?));
+            grab_literal!(self.iter, Semicolon);
+            self.multi_type_variable_declaration_prime(variables)
+        } else {
+            Ok(())
+        }
+    }
+
+    /*
+     * ProcedureDeclaration -> Procedure Ident FormalParameterList SubroutineBlock
+     */
+    fn procedure_declaration(&mut self) -> ParserResult<Declaration> {
+        grab_keyword!(self.iter, Procedure);
+        Ok(Declaration::Procedure {
+            procedure_name: extract_identifier!(self.iter),
+            parameters: self.formal_parameter_list()?,
+            body: self.subroutine_block()?,
+        })
+    }
+
+    /*
+     * FunctionDeclaration -> Function Ident FormalParameterList TypeSpecifier SubroutineBlock
+     */
+    fn function_declaration(&mut self) -> ParserResult<Declaration> {
+        grab_keyword!(self.iter, Function);
+        Ok(Declaration::Function {
+            function_name: extract_identifier!(self.iter),
+            parameters: self.formal_parameter_list()?,
+            return_type: self.type_specifier()?,
+            body: self.subroutine_block()?,
+        })
+    }
+
+    /*
+     * SubroutineBlock -> Forward
+     * SubroutineBlock -> Block
+     */
+    fn subroutine_block(&mut self) -> ParserResult<Option<Block>> {
+        Ok(match self.iter.peek().ok_or(EOI_ERR)? {
+            Token::Keyword(Keyword::Forward) => {
+                self.iter.next();
+                None
+            }
+            Token::Keyword(
+                Keyword::Const
+                | Keyword::Var
+                | Keyword::Procedure
+                | Keyword::Function
+                | Keyword::Begin,
+            ) => Some(self.block()?),
+            t => unexpected_token!("SubroutineBlock", t)?,
+        })
+    }
+
+    /*
+     * FormalParameterList -> LPar ParameterDeclaration RPar
+     */
+    fn formal_parameter_list(&mut self) -> ParserResult<ParameterList> {
+        grab_literal!(self.iter, LPar);
+        let res = self.parameter_declaration()?;
+        grab_literal!(self.iter, RPar);
+        Ok(res)
+    }
+
+    /*
+     * ParameterDeclaration -> Ident TypeSpecifier ParameterDeclarationPrime
+     * ParameterDeclaration -> ε
+     */
+    fn parameter_declaration(&mut self) -> ParserResult<ParameterList> {
+        Ok(match self.iter.peek() {
+            Some(Token::Identifier(name)) => {
+                let mut parameters = vec![(name.clone(), self.type_specifier()?)];
+                self.parameter_declaration_prime(&mut parameters)?;
+                parameters
+            }
+            _ => vec![],
+        })
+    }
+
+    /*
+     * ParameterDeclarationPrime -> Semicolon Ident TypeSpecifier ParameterDeclarationPrime
+     * ParameterDeclarationPrime -> ε
+     */
+    fn parameter_declaration_prime(&mut self, parameters: &mut ParameterList) -> ParserResult<()> {
+        match self.iter.peek() {
+            Some(Token::Literal(Literal::Semicolon)) => self.iter.next(),
+            _ => return Ok(()),
+        };
+        let name = extract_identifier!(self.iter);
+        parameters.push((name, self.type_specifier()?));
+        self.parameter_declaration_prime(parameters)
     }
 
     /*
