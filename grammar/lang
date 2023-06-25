@@ -32,9 +32,9 @@ MultiTypeVariableDeclaration -> TypeSpecifier Semicolon MultiTypeVariableDeclara
 MultiTypeVariableDeclarationPrime -> Ident TypeSpecifier Semicolon MultiTypeVariableDeclarationPrime
 MultiTypeVariableDeclarationPrime -> ε
 
-ProcedureDeclaration -> Procedure Ident FormalParameterList Semicolon SubroutineBlock
+ProcedureDeclaration -> Procedure Ident FormalParameterList Semicolon SubroutineBlock Semicolon
 
-FunctionDeclaration -> Function Ident FormalParameterList TypeSpecifier Semicolon SubroutineBlock
+FunctionDeclaration -> Function Ident FormalParameterList TypeSpecifier Semicolon SubroutineBlock Semicolon
 
 SubroutineBlock -> Forward
 SubroutineBlock -> Block

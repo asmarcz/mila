@@ -458,10 +458,12 @@ impl<'a> Parser<'a> {
         let procedure_name = extract_identifier!(self.iter);
         let parameters = self.formal_parameter_list()?;
         grab_literal!(self.iter, Semicolon);
+        let body = self.subroutine_block()?;
+        grab_literal!(self.iter, Semicolon);
         Ok(Declaration::Procedure {
             procedure_name,
             parameters,
-            body: self.subroutine_block()?,
+            body,
         })
     }
 
@@ -474,11 +476,13 @@ impl<'a> Parser<'a> {
         let parameters = self.formal_parameter_list()?;
         let return_type = self.type_specifier()?;
         grab_literal!(self.iter, Semicolon);
+        let body = self.subroutine_block()?;
+        grab_literal!(self.iter, Semicolon);
         Ok(Declaration::Function {
             function_name,
             parameters,
             return_type,
-            body: self.subroutine_block()?,
+            body,
         })
     }
 
