@@ -454,6 +454,7 @@ impl<'a> Parser<'a> {
         variables: &mut ParameterList,
     ) -> ParserResult<()> {
         if let Some(Token::Identifier(name)) = self.iter.peek() {
+            self.iter.next();
             variables.push((name.clone(), self.type_specifier()?));
             grab_literal!(self.iter, Semicolon);
             self.multi_type_variable_declaration_prime(variables)
