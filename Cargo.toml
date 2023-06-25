@@ -8,3 +8,7 @@ edition = "2021"
 [dependencies]
 itertools = "0.11.0"
 clap = { version = "4.3.5", features = ["derive"] }
+inkwell = { version = "0.2.0", features = ["llvm15-0"] }
+llvm-sys-150 = { package = "llvm-sys", version = "150.1.1", features = [
+	"prefer-dynamic",
+] }
