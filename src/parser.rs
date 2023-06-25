@@ -135,6 +135,15 @@ macro_rules! grab_literal {
     }};
 }
 
+macro_rules! extract_identifier {
+    ($iter:expr) => {
+        match $iter.next().ok_or(EOI_ERR)? {
+            Token::Identifier(name) => name.clone(),
+            t => unexpected_token!("Identifier", t)?,
+        }
+    };
+}
+
 pub struct Parser<'a> {
     iter: Peekable<Iter<'a, Token>>,
 }
@@ -348,10 +357,8 @@ impl<'a> Parser<'a> {
      * SimpleStatement -> Ident SimpleStatementPrime
      */
     fn simple_statement(&mut self) -> ParserResult<StatementNode> {
-        match self.iter.next().ok_or(EOI_ERR)? {
-            Token::Identifier(name) => self.simple_statement_prime(name.clone()),
-            t => unexpected_token!("Identifier", t),
-        }
+        let name = extract_identifier!(self.iter);
+        self.simple_statement_prime(name)
     }
 
     /*
@@ -450,10 +457,7 @@ impl<'a> Parser<'a> {
      */
     fn for_statement(&mut self) -> ParserResult<StatementNode> {
         grab_keyword!(self.iter, For);
-        let control_variable = match self.iter.next().ok_or(EOI_ERR)? {
-            Token::Identifier(name) => name.clone(),
-            t => unexpected_token!("Identifier", t)?,
-        };
+        let control_variable = extract_identifier!(self.iter);
         grab_literal!(self.iter, Becomes);
         let initial_value = self.expression()?;
         let range_direction = match self.iter.next().ok_or(EOI_ERR)? {
