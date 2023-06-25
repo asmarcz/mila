@@ -139,6 +139,7 @@ pub struct Parser<'a> {
     iter: Peekable<Iter<'a, Token>>,
 }
 
+pub type ParserResult<T> = Result<T, String>;
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a Vec<Token>) -> Self {
         Parser {
@@ -146,14 +147,14 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> Result<Node, String> {
+    pub fn parse(&mut self) -> ParserResult<Node> {
         Ok(Node::Expression(self.expression()?))
     }
 
     /*
      * Expression -> SimpleExpression ExpressionPrime
      */
-    fn expression(&mut self) -> Result<ExpressionNode, String> {
+    fn expression(&mut self) -> ParserResult<ExpressionNode> {
         let t = self.simple_expression()?;
         self.expression_prime(t)
     }
@@ -165,7 +166,7 @@ impl<'a> Parser<'a> {
     fn expression_prime(
         &mut self,
         left_simple_expression: ExpressionNode,
-    ) -> Result<ExpressionNode, String> {
+    ) -> ParserResult<ExpressionNode> {
         let Some(Token::RelationalOperator(op)) = self.iter.peek()
         else { return Ok(left_simple_expression); };
         let right_simple_expression = self.simple_expression()?;
@@ -180,7 +181,7 @@ impl<'a> Parser<'a> {
     /*
      * SimpleExpression -> Term SimpleExpressionPrime
      */
-    fn simple_expression(&mut self) -> Result<ExpressionNode, String> {
+    fn simple_expression(&mut self) -> ParserResult<ExpressionNode> {
         let t = self.term()?;
         self.simple_expression_prime(t)
     }
@@ -192,7 +193,7 @@ impl<'a> Parser<'a> {
     fn simple_expression_prime(
         &mut self,
         left_term: ExpressionNode,
-    ) -> Result<ExpressionNode, String> {
+    ) -> ParserResult<ExpressionNode> {
         let Some(Token::AddingOperator(op)) = self.iter.peek()
         else { return Ok(left_term); };
         let right_term = self.term()?;
@@ -207,7 +208,7 @@ impl<'a> Parser<'a> {
     /*
      * Term -> Factor TermPrime
      */
-    fn term(&mut self) -> Result<ExpressionNode, String> {
+    fn term(&mut self) -> ParserResult<ExpressionNode> {
         let f = self.factor()?;
         self.term_prime(f)
     }
@@ -216,7 +217,7 @@ impl<'a> Parser<'a> {
      * TermPrime -> MultiplyingOperator Factor TermPrime
      * TermPrime -> ε
      */
-    fn term_prime(&mut self, left_factor: ExpressionNode) -> Result<ExpressionNode, String> {
+    fn term_prime(&mut self, left_factor: ExpressionNode) -> ParserResult<ExpressionNode> {
         let Some(Token::MultiplyingOperator(op)) = self.iter.peek()
         else { return Ok(left_factor); };
         let right_factor = self.factor()?;
@@ -233,7 +234,7 @@ impl<'a> Parser<'a> {
      * Factor -> Constant
      * Factor -> Ident FactorPrime
      */
-    fn factor(&mut self) -> Result<ExpressionNode, String> {
+    fn factor(&mut self) -> ParserResult<ExpressionNode> {
         let Some(token) = self.iter.next()
         else { Err(EOI_ERR)? };
 
@@ -262,7 +263,7 @@ impl<'a> Parser<'a> {
      * FactorPrime -> ActualParameterList
      * FactorPrime -> ε
      */
-    fn factor_prime(&mut self) -> Result<Option<Vec<ExpressionNode>>, String> {
+    fn factor_prime(&mut self) -> ParserResult<Option<Vec<ExpressionNode>>> {
         Ok(
             // First(ActualParamaterList) = LPar
             if let Some(Token::Literal(Literal::LPar)) = self.iter.peek() {
@@ -276,7 +277,7 @@ impl<'a> Parser<'a> {
     /*
      * ActualParameterList -> LPar ParameterList RPar
      */
-    fn actual_parameter_list(&mut self) -> Result<Vec<ExpressionNode>, String> {
+    fn actual_parameter_list(&mut self) -> ParserResult<Vec<ExpressionNode>> {
         grab_literal!(self.iter, LPar);
         let mut res = match self.parameter_list()? {
             Some(v) => v,
@@ -291,7 +292,7 @@ impl<'a> Parser<'a> {
      * ParameterList -> Expression ParameterListPrime
      * ParameterList -> ε
      */
-    fn parameter_list(&mut self) -> Result<Option<Vec<ExpressionNode>>, String> {
+    fn parameter_list(&mut self) -> ParserResult<Option<Vec<ExpressionNode>>> {
         match self.iter.peek() {
             // First(Expression) = First(Factor)
             Some(Token::Literal(Literal::LPar) | Token::Constant(_) | Token::Identifier(_)) => {
@@ -312,7 +313,7 @@ impl<'a> Parser<'a> {
      * ParameterListPrime -> Comma Expression ParameterListPrime
      * ParameterListPrime -> ε
      */
-    fn parameter_list_prime(&mut self) -> Result<Option<Vec<ExpressionNode>>, String> {
+    fn parameter_list_prime(&mut self) -> ParserResult<Option<Vec<ExpressionNode>>> {
         match self.iter.peek() {
             Some(Token::Literal(Literal::Comma)) => {
                 self.iter.next();
@@ -333,7 +334,7 @@ impl<'a> Parser<'a> {
      * Statement -> SimpleStatement
      * Statement -> StructuredStatement
      */
-    fn statement(&mut self) -> Result<StatementNode, String> {
+    fn statement(&mut self) -> ParserResult<StatementNode> {
         match self.iter.peek().ok_or(EOI_ERR)? {
             Token::Identifier(_) => self.simple_statement(),
             Token::Keyword(Keyword::Begin | Keyword::If | Keyword::For | Keyword::While) => {
@@ -346,7 +347,7 @@ impl<'a> Parser<'a> {
     /*
      * SimpleStatement -> Ident SimpleStatementPrime
      */
-    fn simple_statement(&mut self) -> Result<StatementNode, String> {
+    fn simple_statement(&mut self) -> ParserResult<StatementNode> {
         match self.iter.next().ok_or(EOI_ERR)? {
             Token::Identifier(name) => self.simple_statement_prime(name.clone()),
             t => unexpected_token!("Identifier", t),
@@ -357,7 +358,7 @@ impl<'a> Parser<'a> {
      * SimpleStatementPrime -> Becomes Expression
      * SimpleStatementPrime -> ActualParameterList
      */
-    fn simple_statement_prime(&mut self, name: String) -> Result<StatementNode, String> {
+    fn simple_statement_prime(&mut self, name: String) -> ParserResult<StatementNode> {
         Ok(match self.iter.peek().ok_or(EOI_ERR)? {
             Token::Literal(Literal::Becomes) => {
                 self.iter.next();
@@ -380,7 +381,7 @@ impl<'a> Parser<'a> {
      * StructuredStatement -> ForStatement
      * StructuredStatement -> WhileStatement
      */
-    fn structured_statement(&mut self) -> Result<StatementNode, String> {
+    fn structured_statement(&mut self) -> ParserResult<StatementNode> {
         match self.iter.peek().ok_or(EOI_ERR)? {
             Token::Keyword(Keyword::Begin) => self.compound_statement(),
             Token::Keyword(Keyword::If) => self.if_statement(),
@@ -393,7 +394,7 @@ impl<'a> Parser<'a> {
     /*
      * CompoundStatement -> Begin Statement CompoundStatementPrime End
      */
-    fn compound_statement(&mut self) -> Result<StatementNode, String> {
+    fn compound_statement(&mut self) -> ParserResult<StatementNode> {
         grab_keyword!(self.iter, Begin);
         let mut statements = vec![self.statement()?];
         self.compound_statement_prime(&mut statements)?;
@@ -408,7 +409,7 @@ impl<'a> Parser<'a> {
     fn compound_statement_prime(
         &mut self,
         statements: &mut Vec<StatementNode>,
-    ) -> Result<(), String> {
+    ) -> ParserResult<()> {
         match self.iter.peek() {
             Some(Token::Literal(Literal::Semicolon)) => {
                 self.iter.next();
@@ -422,7 +423,7 @@ impl<'a> Parser<'a> {
     /*
      * IfStatement -> If Expression Then Statement IfStatementPrime
      */
-    fn if_statement(&mut self) -> Result<StatementNode, String> {
+    fn if_statement(&mut self) -> ParserResult<StatementNode> {
         match self.iter.next().ok_or(EOI_ERR)? {
             Token::Keyword(Keyword::If) => Ok(StatementNode::If {
                 condition: self.expression()?,
@@ -437,7 +438,7 @@ impl<'a> Parser<'a> {
      * IfStatementPrime -> Else Statement
      * IfStatementPrime -> ε
      */
-    fn if_statement_prime(&mut self) -> Result<Option<StatementNode>, String> {
+    fn if_statement_prime(&mut self) -> ParserResult<Option<StatementNode>> {
         Ok(match self.iter.peek() {
             Some(Token::Keyword(Keyword::Else)) => Some(self.statement()?),
             _ => None,
@@ -447,7 +448,7 @@ impl<'a> Parser<'a> {
     /*
      * ForStatement -> For Ident Becomes Expression RangeDirection Expression Do Statement
      */
-    fn for_statement(&mut self) -> Result<StatementNode, String> {
+    fn for_statement(&mut self) -> ParserResult<StatementNode> {
         grab_keyword!(self.iter, For);
         let control_variable = match self.iter.next().ok_or(EOI_ERR)? {
             Token::Identifier(name) => name.clone(),
@@ -477,7 +478,7 @@ impl<'a> Parser<'a> {
     /*
      * WhileStatement -> While Expression Do Statement
      */
-    fn while_statement(&mut self) -> Result<StatementNode, String> {
+    fn while_statement(&mut self) -> ParserResult<StatementNode> {
         grab_keyword!(self.iter, While);
         let condition = self.expression()?;
         grab_keyword!(self.iter, Do);
