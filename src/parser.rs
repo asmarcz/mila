@@ -558,6 +558,7 @@ impl<'a> Parser<'a> {
     fn expression_prime(&mut self, left_simple_expression: Expression) -> ParserResult<Expression> {
         let Some(Token::RelationalOperator(op)) = self.iter.peek()
         else { return Ok(left_simple_expression); };
+        self.iter.next();
         let right_simple_expression = self.simple_expression()?;
         let bin_op = Expression::BinaryOperation {
             operator: (*op).into(),
@@ -606,6 +607,7 @@ impl<'a> Parser<'a> {
     fn term_prime(&mut self, left_factor: Expression) -> ParserResult<Expression> {
         let Some(Token::MultiplyingOperator(op)) = self.iter.peek()
         else { return Ok(left_factor); };
+        self.iter.next();
         let right_factor = self.factor()?;
         let bin_op = Expression::BinaryOperation {
             operator: (*op).into(),
