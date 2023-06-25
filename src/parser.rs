@@ -77,17 +77,17 @@ type ParameterList = Vec<(String, Type)>;
 
 #[derive(Debug)]
 pub struct FunctionDeclaration {
-    function_name: String,
-    parameters: ParameterList,
-    return_type: Type,
-    body: Option<Block>,
+    pub function_name: String,
+    pub parameters: ParameterList,
+    pub return_type: Type,
+    pub body: Option<Block>,
 }
 
 #[derive(Debug)]
 pub struct ProcedureDeclaration {
-    procedure_name: String,
-    parameters: ParameterList,
-    body: Option<Block>,
+    pub procedure_name: String,
+    pub parameters: ParameterList,
+    pub body: Option<Block>,
 }
 
 #[derive(Debug)]
@@ -162,14 +162,14 @@ pub enum Statement {
 
 #[derive(Debug)]
 pub struct Block {
-    declarations: Vec<Declaration>,
-    body: Statement,
+    pub declarations: Vec<Declaration>,
+    pub body: Statement,
 }
 
 #[derive(Debug)]
 pub struct Program {
-    name: String,
-    body: Block,
+    pub name: String,
+    pub body: Block,
 }
 
 const EOI_ERR: &str = "Unexpected EOI.";
