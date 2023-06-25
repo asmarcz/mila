@@ -126,6 +126,15 @@ macro_rules! grab_keyword {
     }};
 }
 
+macro_rules! grab_literal {
+    ($iter:expr, $arg:tt) => {{
+        match $iter.next().ok_or(EOI_ERR)? {
+            Token::Literal(Literal::$arg) => {}
+            t => unexpected_token!(Token::Literal(Literal::$arg), t)?,
+        }
+    }};
+}
+
 pub struct Parser<'a> {
     iter: Peekable<Iter<'a, Token>>,
 }
@@ -268,21 +277,14 @@ impl<'a> Parser<'a> {
      * ActualParameterList -> LPar ParameterList RPar
      */
     fn actual_parameter_list(&mut self) -> Result<Vec<ExpressionNode>, String> {
-        match self.iter.next().ok_or(EOI_ERR)? {
-            t if *t != Token::Literal(Literal::LPar) => {
-                unexpected_token!(Token::Literal(Literal::LPar), t)?
-            }
-            _ => {}
-        }
+        grab_literal!(self.iter, LPar);
         let mut res = match self.parameter_list()? {
             Some(v) => v,
             None => vec![],
         };
         res.reverse();
-        match self.iter.next().ok_or(EOI_ERR)? {
-            Token::Literal(Literal::RPar) => Ok(res),
-            t => unexpected_token!(Token::Literal(Literal::RPar), t),
-        }
+        grab_literal!(self.iter, RPar);
+        Ok(res)
     }
 
     /*
@@ -451,10 +453,7 @@ impl<'a> Parser<'a> {
             Token::Identifier(name) => name.clone(),
             t => unexpected_token!("Identifier", t)?,
         };
-        match self.iter.next().ok_or(EOI_ERR)? {
-            Token::Literal(Literal::Becomes) => {}
-            t => unexpected_token!(Token::Literal(Literal::Becomes), t)?,
-        }
+        grab_literal!(self.iter, Becomes);
         let initial_value = self.expression()?;
         let range_direction = match self.iter.next().ok_or(EOI_ERR)? {
             Token::Keyword(Keyword::Downto) => RangeDirection::Down,
