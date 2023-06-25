@@ -513,6 +513,7 @@ impl<'a> Parser<'a> {
     fn parameter_declaration(&mut self) -> ParserResult<ParameterList> {
         Ok(match self.iter.peek() {
             Some(Token::Identifier(name)) => {
+                self.iter.next();
                 let mut parameters = vec![(name.clone(), self.type_specifier()?)];
                 self.parameter_declaration_prime(&mut parameters)?;
                 parameters
