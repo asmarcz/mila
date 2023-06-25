@@ -28,7 +28,7 @@ fn main() -> Result<(), String> {
     if cli.dump_tokens {
         println!("{:#?}", tokens);
     }
-    let ast = Parser::new(&tokens).parse();
+    let ast = Parser::new(&tokens).parse()?;
     if cli.dump_ast {
         println!("{:#?}", ast);
     }
