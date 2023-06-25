@@ -242,7 +242,7 @@ impl Lexer {
             None?
         }
         let name = iter
-            .peeking_take_while(|c| c.is_alphanumeric())
+            .peeking_take_while(|c| c.is_alphanumeric() || *c == '_')
             .collect::<String>();
         let token = if let Ok(keyword) = Keyword::from_str(&name) {
             Token::Keyword(keyword)
