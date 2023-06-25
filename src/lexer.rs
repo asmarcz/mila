@@ -289,19 +289,7 @@ impl Lexer {
                 }
             }),
             '*' => Token::MultiplyingOperator(MultiplyingOp::Mul),
-            '-' => {
-                iter.next();
-                match Self::number(iter) {
-                    Some(Token::Constant(Constant::Double(num))) => {
-                        Token::Constant(Constant::Double(-num))
-                    }
-                    Some(Token::Constant(Constant::Integer(num))) => {
-                        Token::Constant(Constant::Integer(-num))
-                    }
-                    None => Token::AddingOperator(AddingOp::Sub),
-                    _ => unreachable!(),
-                }
-            }
+            '-' => Token::AddingOperator(AddingOp::Sub),
             ',' => Token::Literal(Literal::Comma),
             '[' => Token::Literal(Literal::LBr),
             '(' => Token::Literal(Literal::LPar),
