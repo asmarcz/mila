@@ -71,6 +71,7 @@ ParameterListPrime -> ε
 
 Statement -> SimpleStatement
 Statement -> StructuredStatement
+Statement -> Exit
 Statement -> ε
 
 SimpleStatement -> Ident SimpleStatementPrime
