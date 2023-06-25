@@ -120,6 +120,7 @@ pub enum Statement {
         expression: Expression,
     },
     Compound(Vec<Statement>),
+    Break,
     Empty,
     Exit,
     If {
@@ -728,6 +729,7 @@ impl<'a> Parser<'a> {
     /*
      * Statement -> SimpleStatement
      * Statement -> StructuredStatement
+     * Statement -> Break
      * Statement -> Exit
      * Statement -> ε
      */
@@ -736,6 +738,10 @@ impl<'a> Parser<'a> {
             Some(Token::Identifier(_)) => self.simple_statement(),
             Some(Token::Keyword(Keyword::Begin | Keyword::If | Keyword::For | Keyword::While)) => {
                 self.structured_statement()
+            }
+            Some(Token::Keyword(Keyword::Break)) => {
+                self.iter.next();
+                Ok(Statement::Break)
             }
             Some(Token::Keyword(Keyword::Exit)) => {
                 self.iter.next();
