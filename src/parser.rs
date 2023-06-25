@@ -120,6 +120,7 @@ pub enum Statement {
         expression: Expression,
     },
     Compound(Vec<Statement>),
+    Empty,
     If {
         condition: Expression,
         true_branch: Box<Statement>,
@@ -709,14 +710,15 @@ impl<'a> Parser<'a> {
     /*
      * Statement -> SimpleStatement
      * Statement -> StructuredStatement
+     * Statement -> ε
      */
     fn statement(&mut self) -> ParserResult<Statement> {
-        match self.iter.peek().ok_or(EOI_ERR)? {
-            Token::Identifier(_) => self.simple_statement(),
-            Token::Keyword(Keyword::Begin | Keyword::If | Keyword::For | Keyword::While) => {
+        match self.iter.peek() {
+            Some(Token::Identifier(_)) => self.simple_statement(),
+            Some(Token::Keyword(Keyword::Begin | Keyword::If | Keyword::For | Keyword::While)) => {
                 self.structured_statement()
             }
-            t => unexpected_token!("Identifier or Begin or If or For or While", t),
+            _ => Ok(Statement::Empty),
         }
     }
 

@@ -71,6 +71,7 @@ ParameterListPrime -> ε
 
 Statement -> SimpleStatement
 Statement -> StructuredStatement
+Statement -> ε
 
 SimpleStatement -> Ident SimpleStatementPrime
 SimpleStatementPrime -> Becomes Expression
