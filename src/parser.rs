@@ -451,26 +451,33 @@ impl<'a> Parser<'a> {
     }
 
     /*
-     * ProcedureDeclaration -> Procedure Ident FormalParameterList SubroutineBlock
+     * ProcedureDeclaration -> Procedure Ident FormalParameterList Semicolon SubroutineBlock
      */
     fn procedure_declaration(&mut self) -> ParserResult<Declaration> {
         grab_keyword!(self.iter, Procedure);
+        let procedure_name = extract_identifier!(self.iter);
+        let parameters = self.formal_parameter_list()?;
+        grab_literal!(self.iter, Semicolon);
         Ok(Declaration::Procedure {
-            procedure_name: extract_identifier!(self.iter),
-            parameters: self.formal_parameter_list()?,
+            procedure_name,
+            parameters,
             body: self.subroutine_block()?,
         })
     }
 
     /*
-     * FunctionDeclaration -> Function Ident FormalParameterList TypeSpecifier SubroutineBlock
+     * FunctionDeclaration -> Function Ident FormalParameterList TypeSpecifier Semicolon SubroutineBlock
      */
     fn function_declaration(&mut self) -> ParserResult<Declaration> {
         grab_keyword!(self.iter, Function);
+        let function_name = extract_identifier!(self.iter);
+        let parameters = self.formal_parameter_list()?;
+        let return_type = self.type_specifier()?;
+        grab_literal!(self.iter, Semicolon);
         Ok(Declaration::Function {
-            function_name: extract_identifier!(self.iter),
-            parameters: self.formal_parameter_list()?,
-            return_type: self.type_specifier()?,
+            function_name,
+            parameters,
+            return_type,
             body: self.subroutine_block()?,
         })
     }
