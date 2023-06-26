@@ -76,17 +76,21 @@ pub enum Type {
 type ParameterList = Vec<(String, Type)>;
 
 #[derive(Debug)]
-pub struct FunctionDeclaration {
-    pub function_name: String,
+pub struct Prototype {
+    pub name: String,
     pub parameters: ParameterList,
+}
+
+#[derive(Debug)]
+pub struct FunctionDeclaration {
+    pub prototype: Prototype,
     pub return_type: Type,
     pub body: Option<Block>,
 }
 
 #[derive(Debug)]
 pub struct ProcedureDeclaration {
-    pub procedure_name: String,
-    pub parameters: ParameterList,
+    pub prototype: Prototype,
     pub body: Option<Block>,
 }
 
@@ -476,14 +480,13 @@ impl<'a> Parser<'a> {
      */
     fn procedure_declaration(&mut self) -> ParserResult<Declaration> {
         grab_keyword!(self.iter, Procedure);
-        let procedure_name = extract_identifier!(self.iter);
+        let name = extract_identifier!(self.iter);
         let parameters = self.formal_parameter_list()?;
         grab_literal!(self.iter, Semicolon);
         let body = self.subroutine_block()?;
         grab_literal!(self.iter, Semicolon);
         Ok(Declaration::Procedure(ProcedureDeclaration {
-            procedure_name,
-            parameters,
+            prototype: Prototype { name, parameters },
             body,
         }))
     }
@@ -493,15 +496,14 @@ impl<'a> Parser<'a> {
      */
     fn function_declaration(&mut self) -> ParserResult<Declaration> {
         grab_keyword!(self.iter, Function);
-        let function_name = extract_identifier!(self.iter);
+        let name = extract_identifier!(self.iter);
         let parameters = self.formal_parameter_list()?;
         let return_type = self.type_specifier()?;
         grab_literal!(self.iter, Semicolon);
         let body = self.subroutine_block()?;
         grab_literal!(self.iter, Semicolon);
         Ok(Declaration::Function(FunctionDeclaration {
-            function_name,
-            parameters,
+            prototype: Prototype { name, parameters },
             return_type,
             body,
         }))
