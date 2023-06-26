@@ -44,6 +44,10 @@ impl<'a> SymbolTable<'a> {
         self.table.pop();
     }
 
+    pub fn is_global_scope(&self) -> bool {
+        self.table.len() == 1
+    }
+
     pub fn find(&mut self, name: &str) -> Option<&SymbolInfo<'a>> {
         for hash_map in self.table.iter().rev() {
             if let Some(info) = hash_map.get(name) {
