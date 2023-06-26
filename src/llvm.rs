@@ -95,7 +95,7 @@ impl<'a> LLVMGenerator<'a> {
         let entry = self.context.append_basic_block(main_function, "entry");
         self.builder.position_at_end(entry);
 
-        self.program_to_llvm(program)?;
+        self.program(program)?;
 
         self.builder
             .build_return(Some(&self.context.i32_type().const_int(0, false)));
@@ -103,16 +103,16 @@ impl<'a> LLVMGenerator<'a> {
         Ok(self.module.print_to_string().to_string())
     }
 
-    fn program_to_llvm(&mut self, program: Program) -> GeneratorResult<()> {
-        self.block_to_llvm(program.body)
+    fn program(&mut self, program: Program) -> GeneratorResult<()> {
+        self.block(program.body)
     }
 
-    fn block_to_llvm(&mut self, block: Block) -> GeneratorResult<()> {
-        self.declarations_to_llvm(block.declarations)?;
-        self.statement_to_llvm(block.body)
+    fn block(&mut self, block: Block) -> GeneratorResult<()> {
+        self.declarations(block.declarations)?;
+        self.statement(block.body)
     }
 
-    fn declarations_to_llvm(&mut self, declarations: Vec<Declaration>) -> GeneratorResult<()> {
+    fn declarations(&mut self, declarations: Vec<Declaration>) -> GeneratorResult<()> {
         for decl in declarations {
             match decl {
                 Declaration::Constants(_) => todo!(),
@@ -124,7 +124,7 @@ impl<'a> LLVMGenerator<'a> {
         Ok(())
     }
 
-    fn statement_to_llvm(&mut self, statement: Statement) -> GeneratorResult<()> {
+    fn statement(&mut self, statement: Statement) -> GeneratorResult<()> {
         match statement {
             Statement::ArrayAssignment {
                 array_name,
@@ -159,13 +159,13 @@ impl<'a> LLVMGenerator<'a> {
         }
     }
 
-    fn type_to_llvm(&self, t: Type) -> BasicTypeEnum<'a> {
+    fn r#type(&self, t: Type) -> BasicTypeEnum<'a> {
         match t {
             Type::Array(ArrayType {
                 range,
                 element_type,
             }) => self
-                .type_to_llvm(Type::Simple(element_type))
+                .r#type(Type::Simple(element_type))
                 .array_type(range.count() as u32)
                 .into(),
             Type::Simple(simple) => match simple {
