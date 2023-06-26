@@ -159,7 +159,7 @@ impl<'a> LLVMGenerator<'a> {
         }
     }
 
-    fn r#type(&self, t: Type) -> BasicTypeEnum<'a> {
+    fn r#type(&self, t: Type) -> BasicTypeEnum {
         match t {
             Type::Array(ArrayType {
                 range,
