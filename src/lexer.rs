@@ -93,10 +93,11 @@ pub enum Literal {
     Semicolon,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Constant {
     Integer(i64),
     Double(f64),
+    String(String),
 }
 
 #[derive(Debug, PartialEq)]
@@ -188,7 +189,8 @@ impl Lexer {
                 }
                 continue;
             }
-            let opt = Self::symbol(&mut iter)
+            let opt = Self::string(&mut iter)?
+                .or_else(||Self::symbol(&mut iter))
                 .or_else(|| Self::word(&mut iter))
                 .or_else(|| Self::number(&mut iter));
             if let Some(token) = opt {
@@ -203,6 +205,18 @@ impl Lexer {
         }
 
         Ok(tokens)
+    }
+
+    fn string(iter: &mut Peekable<Chars>) -> Result<Option<Token>, String> {
+        if '\'' != *iter.peek().unwrap() {
+            return Ok(None);
+        }
+        iter.next();
+        let content = iter.peeking_take_while(|c| *c != '\'').collect();
+        if let None = iter.next() {
+            Err("Expected end of string literal.")?
+        }
+        Ok(Some(Token::Constant(Constant::String(content))))
     }
 
     fn number(iter: &mut Peekable<Chars>) -> Option<Token> {

@@ -293,11 +293,13 @@ impl<'a> Parser<'a> {
         let start = match self.constant_prime()? {
             Constant::Integer(int) => int,
             Constant::Double(_) => unexpected_token!("Integer", "Double")?,
+            Constant::String(_) => unexpected_token!("Integer", "String")?,
         };
         grab_literal!(self.iter, DoubleDot);
         let end = match self.constant_prime()? {
             Constant::Integer(int) => int,
             Constant::Double(_) => unexpected_token!("Integer", "Double")?,
+            Constant::String(_) => unexpected_token!("Integer", "String")?,
         };
         grab_literal!(self.iter, RBr);
         grab_keyword!(self.iter, Of);
@@ -700,11 +702,11 @@ impl<'a> Parser<'a> {
      */
     fn constant_prime(&mut self) -> ParserResult<Constant> {
         Ok(match self.iter.next().ok_or(EOI_ERR)? {
-            Token::Constant(c) => *c,
+            Token::Constant(c) => c.clone(),
             Token::AddingOperator(AddingOp::Sub) => match self.iter.next().ok_or(EOI_ERR)? {
                 Token::Constant(Constant::Double(num)) => Constant::Double(-num),
                 Token::Constant(Constant::Integer(num)) => Constant::Integer(-num),
-                t => unexpected_token!("Constant after Sub", t)?,
+                t => unexpected_token!("numeric Constant after Sub", t)?,
             },
             t => unexpected_token!("ConstantPrime", t)?,
         })
