@@ -212,6 +212,8 @@ impl Lexer {
                     .peeking_take_while(|c| c.is_numeric())
                     .collect::<String>();
                 if iter.peek().is_some_and(|c| *c == '.') {
+                    iter.next();
+                    number.push('.');
                     number.extend(iter.peeking_take_while(|c| c.is_numeric()));
                     Constant::Double(number.parse().unwrap())
                 } else {

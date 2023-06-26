@@ -1,0 +1,9 @@
+program doubles;
+
+var x, y, z : double;
+
+begin
+	x := 3.14;
+	y := 3.;
+	z := -0.5;
+end.
