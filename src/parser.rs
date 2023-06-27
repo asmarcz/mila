@@ -79,12 +79,12 @@ type ParameterList = Vec<(String, Type)>;
 pub struct Prototype {
     pub name: String,
     pub parameters: ParameterList,
+    pub return_type: Option<Type>,
 }
 
 #[derive(Debug)]
 pub struct FunctionDeclaration {
     pub prototype: Prototype,
-    pub return_type: Type,
     pub body: Option<Block>,
 }
 
@@ -486,7 +486,11 @@ impl<'a> Parser<'a> {
         let body = self.subroutine_block()?;
         grab_literal!(self.iter, Semicolon);
         Ok(Declaration::Procedure(ProcedureDeclaration {
-            prototype: Prototype { name, parameters },
+            prototype: Prototype {
+                name,
+                parameters,
+                return_type: None,
+            },
             body,
         }))
     }
@@ -503,8 +507,11 @@ impl<'a> Parser<'a> {
         let body = self.subroutine_block()?;
         grab_literal!(self.iter, Semicolon);
         Ok(Declaration::Function(FunctionDeclaration {
-            prototype: Prototype { name, parameters },
-            return_type,
+            prototype: Prototype {
+                name,
+                parameters,
+                return_type: Some(return_type),
+            },
             body,
         }))
     }

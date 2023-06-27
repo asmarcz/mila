@@ -2,7 +2,7 @@ use crate::{
     lexer::Constant,
     parser::{
         ArrayType, Block, Declaration, Expression, FunctionDeclaration, ProcedureDeclaration,
-        Program, SimpleType, Statement, Type,
+        Program, Prototype, SimpleType, Statement, Type,
     },
 };
 use inkwell::{
@@ -22,6 +22,11 @@ struct SymbolInfo<'a> {
 
 struct FunctionInfo<'a> {
     declaration: FunctionDeclaration,
+    value: FunctionValue<'a>,
+}
+
+struct ProcedureInfo<'a> {
+    declaration: ProcedureDeclaration,
     value: FunctionValue<'a>,
 }
 
@@ -90,8 +95,9 @@ pub struct LLVMGenerator<'a> {
     builder: Builder<'a>,
     module: Module<'a>,
     symbol_table: SymbolTable<'a>,
-    function_table: HashMap<String, FunctionDeclaration>,
-    procedure_table: HashMap<String, ProcedureDeclaration>,
+    current_function: Option<FunctionValue<'a>>,
+    function_table: HashMap<String, FunctionInfo<'a>>,
+    procedure_table: HashMap<String, ProcedureInfo<'a>>,
 }
 
 pub type GeneratorResult<T> = Result<T, String>;
