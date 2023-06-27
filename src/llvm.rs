@@ -30,6 +30,17 @@ enum TableError {
     NoScopeExists,
 }
 
+impl From<TableError> for String {
+    fn from(val: TableError) -> Self {
+        match val {
+            TableError::AlreadyExists(name) => {
+                format!("Variable '{}' has been already declared.", name)
+            }
+            TableError::NoScopeExists => "No scope has been created.".to_string(),
+        }
+    }
+}
+
 struct SymbolTable<'a> {
     table: Vec<HashMap<String, SymbolInfo<'a>>>,
 }
@@ -172,12 +183,9 @@ impl<'a> LLVMGenerator<'a> {
                             r#type: typ,
                             ptr,
                         };
-                        self.symbol_table
-                            .insert(name.clone(), symbol_info)
-                            .map_err(|err| match err {
-                                TableError::AlreadyExists => {
-                                    format!("Variable '{}' has been already declared.", name)
-                                }
+                        self.symbol_table.insert(name.clone(), symbol_info)?;
+                    }
+                }
                                 TableError::NoScopeExists => {
                                     "No scope has been created.".to_string()
                                 }
@@ -193,16 +201,7 @@ impl<'a> LLVMGenerator<'a> {
                             ptr: self.create_alloca(name.as_str(), typ.clone()),
                             r#type: typ,
                         };
-                        self.symbol_table
-                            .insert(name.clone(), symbol_info)
-                            .map_err(|err| match err {
-                                TableError::AlreadyExists => {
-                                    format!("Variable '{}' has been already declared.", name)
-                                }
-                                TableError::NoScopeExists => {
-                                    "No scope has been created.".to_string()
-                                }
-                            })?;
+                        self.symbol_table.insert(name.clone(), symbol_info)?;
                     }
                 }
             }
