@@ -4,7 +4,7 @@ use crate::lexer::{
 use itertools::Itertools;
 use std::{iter::Peekable, ops::RangeInclusive, slice::Iter, vec};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum BinaryOp {
     And,
     Add,
@@ -55,19 +55,19 @@ impl Into<BinaryOp> for RelationalOp {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SimpleType {
     Double,
     Integer,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ArrayType {
     pub range: RangeInclusive<i64>,
     pub element_type: SimpleType,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Type {
     Array(ArrayType),
     Simple(SimpleType),
@@ -75,26 +75,26 @@ pub enum Type {
 
 type ParameterList = Vec<(String, Type)>;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Prototype {
     pub name: String,
     pub parameters: ParameterList,
     pub return_type: Option<Type>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct FunctionDeclaration {
     pub prototype: Prototype,
     pub body: Option<Block>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ProcedureDeclaration {
     pub prototype: Prototype,
     pub body: Option<Block>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Declaration {
     Constants(Vec<(String, Expression)>),
     Function(FunctionDeclaration),
@@ -102,7 +102,7 @@ pub enum Declaration {
     Variables(ParameterList),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Expression {
     ArrayAccess {
         array_name: String,
@@ -121,13 +121,13 @@ pub enum Expression {
     Variable(String),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum RangeDirection {
     Down,
     Up,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Statement {
     ArrayAssignment {
         array_name: String,
@@ -164,7 +164,7 @@ pub enum Statement {
     },
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Block {
     pub declarations: Vec<Declaration>,
     pub body: Statement,
