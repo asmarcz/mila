@@ -191,7 +191,28 @@ impl<'a> LLVMGenerator<'a> {
             Ok(alloca)
         }
     }
+
+    fn prototype(&mut self, prototype: &Prototype) -> GeneratorResult<FunctionValue<'a>> {
+        let param_types = prototype
+            .parameters
+            .iter()
+            .map(|p| self.r#type(p.1.clone()).into())
+            .collect::<Vec<BasicMetadataTypeEnum>>();
+        let fn_type = match prototype.return_type {
+            Some(ref t) => self
+                .r#type(t.clone())
+                .fn_type(param_types.as_slice(), false),
+            None => self
+                .context
+                .void_type()
+                .fn_type(param_types.as_slice(), false),
+        };
+        let fn_val = self.module.add_function(&prototype.name, fn_type, None);
+        let arg_names = prototype.parameters.iter().map(|p| p.0.as_str());
+        for (arg, arg_name) in fn_val.get_param_iter().zip(arg_names) {
+            arg.set_name(arg_name);
         }
+        Ok(fn_val)
     }
 
     fn declarations(&mut self, declarations: Vec<Declaration>) -> GeneratorResult<()> {
