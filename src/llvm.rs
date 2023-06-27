@@ -157,21 +157,25 @@ impl<'a> LLVMGenerator<'a> {
         Ok(())
     }
 
-    fn create_alloca(&mut self, name: &str, typ: Type) -> PointerValue<'a> {
+    fn create_alloca(&mut self, name: &str, typ: Type) -> GeneratorResult<PointerValue<'a>> {
         if self.symbol_table.is_global_scope() {
             // TODO should initialize??
-            self.module
+            let ptr = self
+                .module
                 .add_global(self.r#type(typ), None, name)
-                .as_pointer_value()
+                .as_pointer_value();
+            Ok(ptr)
         } else {
-            let fn_value = self.module.get_last_function().unwrap();
+            let fn_value = self
+                .current_function
+                .ok_or("Unexpected non-global allocation outside of a function.")?;
             let entry = fn_value.get_first_basic_block().unwrap();
             let builder = self.context.create_builder();
             match entry.get_first_instruction() {
                 Some(first_instr) => builder.position_before(&first_instr),
                 None => builder.position_at_end(entry),
             }
-            match typ {
+            let alloca = match typ {
                 Type::Array(ArrayType {
                     range,
                     element_type,
@@ -183,7 +187,10 @@ impl<'a> LLVMGenerator<'a> {
                     &name,
                 ),
                 t @ Type::Simple(_) => builder.build_alloca(self.r#type(t), name),
-            }
+            };
+            Ok(alloca)
+        }
+    }
         }
     }
 
