@@ -1,8 +1,8 @@
 use crate::{
-    lexer::Constant,
+    lexer::{AddingOp, Constant, MultiplyingOp, RelationalOp},
     parser::{
-        ArrayType, Block, Declaration, Expression, FunctionDeclaration, ProcedureDeclaration,
-        Program, Prototype, SimpleType, Statement, Type,
+        ArrayType, BinaryOp, Block, Declaration, Expression, FunctionDeclaration,
+        ProcedureDeclaration, Program, Prototype, SimpleType, Statement, Type,
     },
 };
 use inkwell::{
@@ -10,7 +10,8 @@ use inkwell::{
     context::Context,
     module::Module,
     types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum},
-    values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue},
+    values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    FloatPredicate, IntPredicate,
 };
 use std::collections::HashMap;
 
@@ -391,6 +392,119 @@ impl<'a> LLVMGenerator<'a> {
         }
     }
 
+    fn common_promotion(
+        &mut self,
+        lhs: BasicValueEnum<'a>,
+        rhs: BasicValueEnum<'a>,
+    ) -> (BasicValueEnum<'a>, BasicValueEnum<'a>) {
+        match (lhs, rhs) {
+            (BasicValueEnum::IntValue(int), b2 @ BasicValueEnum::FloatValue(_)) => {
+                let conv =
+                    self.builder
+                        .build_signed_int_to_float(int, self.context.f64_type(), "conv");
+                (conv.into(), b2)
+            }
+            (b1 @ BasicValueEnum::FloatValue(_), BasicValueEnum::IntValue(int)) => {
+                let conv =
+                    self.builder
+                        .build_signed_int_to_float(int, self.context.f64_type(), "conv");
+                (b1, conv.into())
+            }
+            _ => (lhs, rhs),
+        }
+    }
+
+    fn multiplying_operation(
+        &mut self,
+        operator: MultiplyingOp,
+        lhs: BasicValueEnum<'a>,
+        rhs: BasicValueEnum<'a>,
+    ) -> GeneratorResult<BasicValueEnum<'a>> {
+        let (lhs, rhs) = self.common_promotion(lhs, rhs);
+        Ok(match (lhs, rhs) {
+            (BasicValueEnum::IntValue(i1), BasicValueEnum::IntValue(i2)) => match operator {
+                MultiplyingOp::And => self.builder.build_and(i1, i2, "and"),
+                MultiplyingOp::Div => self.builder.build_int_signed_div(i1, i2, "div"),
+                MultiplyingOp::Mod => self.builder.build_int_signed_rem(i1, i2, "rem"),
+                MultiplyingOp::Mul => self.builder.build_int_mul(i1, i2, "mul"),
+            }
+            .into(),
+            (BasicValueEnum::FloatValue(f1), BasicValueEnum::FloatValue(f2)) => match operator {
+                MultiplyingOp::Div => self.builder.build_float_div(f1, f2, "fdiv"),
+                MultiplyingOp::Mod => self.builder.build_float_rem(f1, f2, "fmod"),
+                MultiplyingOp::Mul => self.builder.build_float_mul(f1, f2, "fmul"),
+                MultiplyingOp::And => Err(format!(
+                    "Cannot use operator '{:#?}' on double values.",
+                    MultiplyingOp::And,
+                ))?,
+            }
+            .into(),
+            _ => Err(format!(
+                "Unexpeted arguments '{}' and '{}' to {:#?}.",
+                lhs, rhs, operator
+            ))?,
+        })
+    }
+
+    fn adding_operation(
+        &mut self,
+        operator: AddingOp,
+        lhs: BasicValueEnum<'a>,
+        rhs: BasicValueEnum<'a>,
+    ) -> GeneratorResult<BasicValueEnum<'a>> {
+        let (lhs, rhs) = self.common_promotion(lhs, rhs);
+        Ok(match (lhs, rhs) {
+            (BasicValueEnum::IntValue(i1), BasicValueEnum::IntValue(i2)) => match operator {
+                AddingOp::Add => self.builder.build_int_add(i1, i2, "add"),
+                AddingOp::Or => self.builder.build_or(i1, i2, "or"),
+                AddingOp::Sub => self.builder.build_int_sub(i1, i2, "sub"),
+            }
+            .into(),
+            (BasicValueEnum::FloatValue(f1), BasicValueEnum::FloatValue(f2)) => match operator {
+                AddingOp::Add => self.builder.build_float_add(f1, f2, "fadd"),
+                AddingOp::Sub => self.builder.build_float_sub(f1, f2, "fsub"),
+                AddingOp::Or => Err(format!(
+                    "Cannot use operator '{:#?}' on double values.",
+                    AddingOp::Or
+                ))?,
+            }
+            .into(),
+            _ => Err(format!(
+                "Unexpeted arguments '{}' and '{}' to {:#?}.",
+                lhs, rhs, operator
+            ))?,
+        })
+    }
+
+    fn relational_operation(
+        &mut self,
+        operator: RelationalOp,
+        lhs: BasicValueEnum<'a>,
+        rhs: BasicValueEnum<'a>,
+    ) -> GeneratorResult<IntValue<'a>> {
+        let (int_pred, float_pred, name) = match operator {
+            RelationalOp::Eq => (IntPredicate::EQ, FloatPredicate::OEQ, "eq"),
+            RelationalOp::Ge => (IntPredicate::SGE, FloatPredicate::OGE, "ge"),
+            RelationalOp::Gt => (IntPredicate::SGT, FloatPredicate::OGT, "gt"),
+            RelationalOp::Le => (IntPredicate::SLE, FloatPredicate::OLE, "le"),
+            RelationalOp::Lt => (IntPredicate::SLT, FloatPredicate::OLT, "lt"),
+            RelationalOp::Neq => (IntPredicate::NE, FloatPredicate::ONE, "ne"),
+        };
+        let (lhs, rhs) = self.common_promotion(lhs, rhs);
+        Ok(match (lhs, rhs) {
+            (BasicValueEnum::ArrayValue(_), BasicValueEnum::ArrayValue(_)) => todo!(),
+            (BasicValueEnum::IntValue(i1), BasicValueEnum::IntValue(i2)) => self
+                .builder
+                .build_int_compare(int_pred, i1, i2, &format!("cmp{}", name))
+                .into(),
+            (BasicValueEnum::FloatValue(f1), BasicValueEnum::FloatValue(f2)) => self
+                .builder
+                .build_float_compare(float_pred, f1, f2, &format!("fcmp{}", name))
+                .into(),
+            _ => unreachable!(),
+        })
+    }
+
     fn expression(&mut self, expression: Expression) -> GeneratorResult<BasicValueEnum<'a>> {
         Ok(match expression {
             Expression::ArrayAccess { array_name, index } => todo!(),
@@ -409,7 +523,19 @@ impl<'a> LLVMGenerator<'a> {
                 operator,
                 left,
                 right,
-            } => todo!(),
+            } => {
+                let lhs = self.expression(*left)?;
+                let rhs = self.expression(*right)?;
+                if let Ok(op) = <BinaryOp as TryInto<MultiplyingOp>>::try_into(operator) {
+                    self.multiplying_operation(op, lhs, rhs)?.into()
+                } else if let Ok(op) = <BinaryOp as TryInto<AddingOp>>::try_into(operator) {
+                    self.adding_operation(op, lhs, rhs)?.into()
+                } else if let Ok(op) = <BinaryOp as TryInto<RelationalOp>>::try_into(operator) {
+                    self.relational_operation(op, lhs, rhs)?.into()
+                } else {
+                    unreachable!()
+                }
+            }
             Expression::FunctionCall {
                 function_name,
                 arguments,

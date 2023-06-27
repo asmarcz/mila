@@ -4,7 +4,7 @@ use crate::lexer::{
 use itertools::Itertools;
 use std::{iter::Peekable, ops::RangeInclusive, slice::Iter, vec};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum BinaryOp {
     And,
     Add,
@@ -32,6 +32,20 @@ impl Into<BinaryOp> for MultiplyingOp {
     }
 }
 
+impl TryFrom<BinaryOp> for MultiplyingOp {
+    type Error = ();
+
+    fn try_from(value: BinaryOp) -> Result<Self, Self::Error> {
+        Ok(match value {
+            BinaryOp::And => MultiplyingOp::And,
+            BinaryOp::Div => MultiplyingOp::Div,
+            BinaryOp::Mod => MultiplyingOp::Mod,
+            BinaryOp::Mul => MultiplyingOp::Mul,
+            _ => Err(())?,
+        })
+    }
+}
+
 impl Into<BinaryOp> for AddingOp {
     fn into(self) -> BinaryOp {
         match self {
@@ -39,6 +53,19 @@ impl Into<BinaryOp> for AddingOp {
             Self::Or => BinaryOp::Or,
             Self::Sub => BinaryOp::Sub,
         }
+    }
+}
+
+impl TryFrom<BinaryOp> for AddingOp {
+    type Error = ();
+
+    fn try_from(value: BinaryOp) -> Result<Self, Self::Error> {
+        Ok(match value {
+            BinaryOp::Add => AddingOp::Add,
+            BinaryOp::Or => AddingOp::Or,
+            BinaryOp::Sub => AddingOp::Sub,
+            _ => Err(())?,
+        })
     }
 }
 
@@ -52,6 +79,22 @@ impl Into<BinaryOp> for RelationalOp {
             Self::Lt => BinaryOp::Lt,
             Self::Neq => BinaryOp::Neq,
         }
+    }
+}
+
+impl TryFrom<BinaryOp> for RelationalOp {
+    type Error = ();
+
+    fn try_from(value: BinaryOp) -> Result<Self, Self::Error> {
+        Ok(match value {
+            BinaryOp::Eq => RelationalOp::Eq,
+            BinaryOp::Ge => RelationalOp::Ge,
+            BinaryOp::Gt => RelationalOp::Gt,
+            BinaryOp::Le => RelationalOp::Le,
+            BinaryOp::Lt => RelationalOp::Lt,
+            BinaryOp::Neq => RelationalOp::Neq,
+            _ => Err(())?,
+        })
     }
 }
 
