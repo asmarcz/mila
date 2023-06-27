@@ -26,7 +26,7 @@ struct FunctionInfo<'a> {
 }
 
 enum TableError {
-    AlreadyExists,
+    AlreadyExists(String),
     NoScopeExists,
 }
 
@@ -62,8 +62,12 @@ impl<'a> SymbolTable<'a> {
 
     pub fn insert(&mut self, name: String, symbol_info: SymbolInfo<'a>) -> Result<(), TableError> {
         if let Some(hash_map) = self.table.last_mut() {
-            hash_map.insert(name, symbol_info);
-            Ok(())
+            if hash_map.contains_key(&name) {
+                Err(TableError::AlreadyExists(name))?
+            } else {
+                hash_map.insert(name, symbol_info);
+                Ok(())
+            }
         } else {
             Err(TableError::NoScopeExists)
         }
