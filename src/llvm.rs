@@ -68,7 +68,7 @@ impl<'a> SymbolTable<'a> {
         self.table.len() == 1
     }
 
-    pub fn find(&mut self, name: &str) -> Option<&SymbolInfo<'a>> {
+    pub fn find(&self, name: &str) -> Option<&SymbolInfo<'a>> {
         for hash_map in self.table.iter().rev() {
             if let Some(info) = hash_map.get(name) {
                 return Some(info);
@@ -176,7 +176,7 @@ impl<'a> LLVMGenerator<'a> {
         Ok(())
     }
 
-    fn create_alloca(&mut self, name: &str, typ: Type) -> GeneratorResult<PointerValue<'a>> {
+    fn create_alloca(&self, name: &str, typ: Type) -> GeneratorResult<PointerValue<'a>> {
         if self.symbol_table.is_global_scope() {
             // TODO should initialize??
             let ptr = self
@@ -211,7 +211,7 @@ impl<'a> LLVMGenerator<'a> {
         }
     }
 
-    fn prototype(&mut self, prototype: &Prototype) -> GeneratorResult<FunctionValue<'a>> {
+    fn prototype(&self, prototype: &Prototype) -> GeneratorResult<FunctionValue<'a>> {
         let param_types = prototype
             .parameters
             .iter()
@@ -400,7 +400,7 @@ impl<'a> LLVMGenerator<'a> {
     }
 
     fn common_promotion(
-        &mut self,
+        &self,
         lhs: BasicValueEnum<'a>,
         rhs: BasicValueEnum<'a>,
     ) -> (BasicValueEnum<'a>, BasicValueEnum<'a>) {
@@ -422,7 +422,7 @@ impl<'a> LLVMGenerator<'a> {
     }
 
     fn multiplying_operation(
-        &mut self,
+        &self,
         operator: MultiplyingOp,
         lhs: BasicValueEnum<'a>,
         rhs: BasicValueEnum<'a>,
@@ -454,7 +454,7 @@ impl<'a> LLVMGenerator<'a> {
     }
 
     fn adding_operation(
-        &mut self,
+        &self,
         operator: AddingOp,
         lhs: BasicValueEnum<'a>,
         rhs: BasicValueEnum<'a>,
@@ -484,7 +484,7 @@ impl<'a> LLVMGenerator<'a> {
     }
 
     fn relational_operation(
-        &mut self,
+        &self,
         operator: RelationalOp,
         lhs: BasicValueEnum<'a>,
         rhs: BasicValueEnum<'a>,
@@ -512,7 +512,7 @@ impl<'a> LLVMGenerator<'a> {
         })
     }
 
-    fn expression(&mut self, expression: Expression) -> GeneratorResult<BasicValueEnum<'a>> {
+    fn expression(&self, expression: Expression) -> GeneratorResult<BasicValueEnum<'a>> {
         Ok(match expression {
             Expression::ArrayAccess { array_name, index } => todo!(),
             Expression::Constant(c) => match c {
