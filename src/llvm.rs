@@ -150,8 +150,11 @@ impl<'a> LLVMGenerator<'a> {
     }
 
     fn block(&mut self, block: Block) -> GeneratorResult<()> {
+        self.symbol_table.new_scope();
         self.declarations(block.declarations)?;
-        self.statement(block.body)
+        self.statement(block.body)?;
+        self.symbol_table.delete_scope();
+        Ok(())
     }
 
     fn create_alloca(&mut self, name: &str, typ: Type) -> PointerValue<'a> {
