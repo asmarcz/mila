@@ -9,8 +9,8 @@ use inkwell::{
     builder::Builder,
     context::Context,
     module::Module,
-    types::{BasicType, BasicTypeEnum},
-    values::{BasicValueEnum, FunctionValue, PointerValue},
+    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum},
+    values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue},
 };
 use std::collections::HashMap;
 
@@ -88,6 +88,24 @@ impl<'a> SymbolTable<'a> {
             Err(TableError::NoScopeExists)
         }
     }
+}
+
+macro_rules! check_function_errors {
+    ($table:expr, $prototype:expr, $err_symb:expr) => {
+        if let Some(func_info) = $table.get(&$prototype.name) {
+            if let Some(_) = func_info.declaration.body {
+                Err(format!(
+                    "{} '{}' has already been defined.",
+                    $err_symb, $prototype.name
+                ))?
+            } else if func_info.declaration.prototype != *$prototype {
+                Err(format!(
+                    "{} '{}' has already been declared with a different prototype.",
+                    $err_symb, $prototype.name
+                ))?
+            }
+        }
+    };
 }
 
 pub struct LLVMGenerator<'a> {
@@ -215,6 +233,38 @@ impl<'a> LLVMGenerator<'a> {
         Ok(fn_val)
     }
 
+    fn content_for_function_value(
+        &mut self,
+        fun_val: FunctionValue<'a>,
+        prototype: &Prototype,
+        body_block: Block,
+        return_alloca: Option<&dyn BasicValue<'a>>,
+    ) -> GeneratorResult<()> {
+        self.current_function = Some(fun_val);
+        let entry = self.context.append_basic_block(fun_val, "entry");
+        self.builder.position_at_end(entry);
+
+        for (arg_val, (arg_name, arg_typ)) in
+            fun_val.get_param_iter().zip(prototype.parameters.iter())
+        {
+            let alloca = self.create_alloca(&arg_name, arg_typ.clone())?;
+            self.builder.build_store(alloca, arg_val);
+            self.symbol_table.insert(
+                arg_name.clone(),
+                SymbolInfo {
+                    r#type: arg_typ.clone(),
+                    is_mutable: true,
+                    ptr: alloca,
+                },
+            )?;
+        }
+
+        self.block(body_block)?;
+        self.builder.build_return(return_alloca);
+        self.current_function = None;
+        Ok(())
+    }
+
     fn declarations(&mut self, declarations: Vec<Declaration>) -> GeneratorResult<()> {
         for decl in declarations {
             match decl {
@@ -237,14 +287,60 @@ impl<'a> LLVMGenerator<'a> {
                         self.symbol_table.insert(name.clone(), symbol_info)?;
                     }
                 }
-                                TableError::NoScopeExists => {
-                                    "No scope has been created.".to_string()
-                                }
-                            })?;
+                Declaration::Function(decl) => {
+                    check_function_errors!(self.function_table, &decl.prototype, "Function");
+
+                    let cloned_decl = decl.clone();
+                    let function = self.prototype(&decl.prototype)?;
+                    self.function_table.insert(
+                        decl.prototype.name.clone(),
+                        FunctionInfo {
+                            declaration: cloned_decl,
+                            value: function,
+                        },
+                    );
+                    if let Some(body_block) = decl.body {
+                        // introduce variable representing return value
+                        let typ = decl.prototype.return_type.clone().unwrap();
+                        let name = decl.prototype.name.clone();
+                        let alloca = self.create_alloca(&name, typ.clone())?;
+                        self.symbol_table.insert(
+                            name,
+                            SymbolInfo {
+                                r#type: typ,
+                                is_mutable: true,
+                                ptr: alloca,
+                            },
+                        )?;
+                        self.content_for_function_value(
+                            function,
+                            &decl.prototype,
+                            body_block,
+                            Some(&alloca),
+                        )?;
                     }
                 }
-                Declaration::Function(_) => todo!(),
-                Declaration::Procedure(_) => todo!(),
+                Declaration::Procedure(decl) => {
+                    check_function_errors!(self.procedure_table, &decl.prototype, "Procedure");
+
+                    let cloned_decl = decl.clone();
+                    let procedure = self.prototype(&decl.prototype)?;
+                    self.procedure_table.insert(
+                        decl.prototype.name.clone(),
+                        ProcedureInfo {
+                            declaration: cloned_decl,
+                            value: procedure,
+                        },
+                    );
+                    if let Some(body_block) = decl.body {
+                        self.content_for_function_value(
+                            procedure,
+                            &decl.prototype,
+                            body_block,
+                            None,
+                        )?;
+                    }
+                }
                 Declaration::Variables(vars) => {
                     for (name, typ) in vars {
                         let symbol_info = SymbolInfo {
