@@ -110,6 +110,7 @@ impl<'a> LLVMGenerator<'a> {
             context,
             builder,
             module,
+            current_function: None,
             symbol_table: SymbolTable::new(),
             function_table: HashMap::new(),
             procedure_table: HashMap::new(),
@@ -123,7 +124,29 @@ impl<'a> LLVMGenerator<'a> {
     }
 
     fn program(&mut self, program: Program) -> GeneratorResult<()> {
-        self.block(program.body)
+        self.symbol_table.new_scope();
+        self.declarations(program.body.declarations)?;
+        // define main function
+        let block_without_declarations = Block {
+            declarations: vec![],
+            body: Statement::Compound(vec![
+                program.body.body,
+                Statement::VariableAssignment {
+                    variable_name: "main".to_string(),
+                    value: Expression::Constant(Constant::Integer(0)),
+                },
+            ]),
+        };
+        let main_decl = FunctionDeclaration {
+            prototype: Prototype {
+                name: "main".to_string(),
+                parameters: vec![],
+                return_type: Some(Type::Simple(SimpleType::Integer)),
+            },
+            body: Some(block_without_declarations),
+        };
+        self.declarations(vec![Declaration::Function(main_decl)])?;
+        Ok(())
     }
 
     fn block(&mut self, block: Block) -> GeneratorResult<()> {
