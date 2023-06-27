@@ -227,7 +227,7 @@ impl<'a> LLVMGenerator<'a> {
                             BasicValueEnum::FloatValue(_) => Type::Simple(SimpleType::Double),
                             _ => Err("Unexpected expression type in constant declaration.")?,
                         };
-                        let ptr = self.create_alloca(&name, typ.clone());
+                        let ptr = self.create_alloca(&name, typ.clone())?;
                         self.builder.build_store(ptr, val);
                         let symbol_info = SymbolInfo {
                             is_mutable: false,
@@ -249,7 +249,7 @@ impl<'a> LLVMGenerator<'a> {
                     for (name, typ) in vars {
                         let symbol_info = SymbolInfo {
                             is_mutable: true,
-                            ptr: self.create_alloca(name.as_str(), typ.clone()),
+                            ptr: self.create_alloca(name.as_str(), typ.clone())?,
                             r#type: typ,
                         };
                         self.symbol_table.insert(name.clone(), symbol_info)?;
