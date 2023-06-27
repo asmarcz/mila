@@ -364,9 +364,15 @@ impl<'a> LLVMGenerator<'a> {
                 index,
                 value,
             } => todo!(),
-            Statement::Compound(_) => todo!(),
+            Statement::Compound(stmts) => {
+                self.symbol_table.new_scope();
+                for stmt in stmts {
+                    self.statement(stmt)?;
+                }
+                self.symbol_table.delete_scope();
+            }
             Statement::Break => todo!(),
-            Statement::Empty => todo!(),
+            Statement::Empty => {}
             Statement::Exit => todo!(),
             Statement::If {
                 condition,
@@ -390,6 +396,7 @@ impl<'a> LLVMGenerator<'a> {
             } => todo!(),
             Statement::While { condition, body } => todo!(),
         }
+        Ok(())
     }
 
     fn common_promotion(
