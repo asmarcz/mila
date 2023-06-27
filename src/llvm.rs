@@ -116,17 +116,8 @@ impl<'a> LLVMGenerator<'a> {
         }
     }
 
-    fn generate_ir(&mut self, program: Program) -> GeneratorResult<String> {
-        let main_function =
-            self.module
-                .add_function("main", self.context.i32_type().fn_type(&[], false), None);
-        let entry = self.context.append_basic_block(main_function, "entry");
-        self.builder.position_at_end(entry);
-
+    fn generate_ir(mut self, program: Program) -> GeneratorResult<String> {
         self.program(program)?;
-
-        self.builder
-            .build_return(Some(&self.context.i32_type().const_int(0, false)));
         self.module.verify().map_err(|s| s.to_string())?;
         Ok(self.module.print_to_string().to_string())
     }
@@ -299,6 +290,6 @@ impl<'a> LLVMGenerator<'a> {
 
 pub fn generate_ir(program: Program) -> GeneratorResult<String> {
     let context = Context::create();
-    let mut llvm_generator = LLVMGenerator::new(&context);
+    let llvm_generator = LLVMGenerator::new(&context);
     llvm_generator.generate_ir(program)
 }
