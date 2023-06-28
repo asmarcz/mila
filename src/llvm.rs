@@ -399,6 +399,44 @@ impl<'a> LLVMGenerator<'a> {
         }
     }
 
+    fn function_call(
+        &self,
+        fn_val: FunctionValue<'a>,
+        fun_name: &str,
+        prototype: &Prototype,
+        arguments: &Vec<Expression>,
+    ) -> GeneratorResult<Option<BasicValueEnum<'a>>> {
+        if prototype.parameters.len() != arguments.len() {
+            Err(format!(
+                "Expected {} arguments to {}, got {} instead.",
+                prototype.parameters.len(),
+                fun_name,
+                arguments.len(),
+            ))?
+        }
+        let mut compiled_args = Vec::with_capacity(arguments.len());
+        for (i, (arg, (_, typ))) in arguments
+            .iter()
+            .zip(prototype.parameters.iter().by_ref())
+            .enumerate()
+        {
+            let res = self.expression(arg.clone())?;
+            let expected = self.r#type(typ.clone());
+            if res.get_type() != expected {
+                Err(format!(
+                    "In a call to '{}', argument on position {} has mismatched type. Expected '{}', got '{}' instead.",
+                    fun_name,
+                    i + 1,
+                    expected,
+                    res.get_type()
+                ))?
+            }
+            compiled_args.push(res.into());
+        }
+        let ret_val = self.builder.build_call(fn_val, &compiled_args, "funretval");
+        Ok(ret_val.try_as_basic_value().left())
+    }
+
     fn statement(&mut self, statement: Statement) -> GeneratorResult<()> {
         match statement {
             Statement::ArrayAssignment {
@@ -459,7 +497,17 @@ impl<'a> LLVMGenerator<'a> {
             Statement::ProcedureCall {
                 procedure_name,
                 arguments,
-            } => todo!(),
+            } => {
+                if let Some(ProcedureInfo {
+                    declaration: ProcedureDeclaration { prototype, .. },
+                    value: fn_val,
+                }) = self.procedure_table.get(&procedure_name)
+                {
+                    self.function_call(*fn_val, &procedure_name, prototype, &arguments)?;
+                } else {
+                    Err(format!("Undefined procedure '{}'.", procedure_name))?
+                }
+            }
             Statement::VariableAssignment {
                 variable_name,
                 value,
@@ -652,7 +700,18 @@ impl<'a> LLVMGenerator<'a> {
             Expression::FunctionCall {
                 function_name,
                 arguments,
-            } => todo!(),
+            } => {
+                if let Some(FunctionInfo {
+                    declaration: FunctionDeclaration { prototype, .. },
+                    value: fn_val,
+                }) = self.function_table.get(&function_name)
+                {
+                    self.function_call(*fn_val, &function_name, prototype, &arguments)?
+                        .unwrap()
+                } else {
+                    Err(format!("Undefined procedure '{}'.", function_name))?
+                }
+            }
             Expression::Variable(name) => match self.symbol_table.find(&name) {
                 // TODO What happens if the variable is an array?
                 Some(SymbolInfo { ptr, r#type, .. }) => {
