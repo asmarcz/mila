@@ -6,6 +6,7 @@ use crate::{
     },
 };
 use inkwell::{
+    basic_block::BasicBlock,
     builder::Builder,
     context::Context,
     module::Module,
@@ -115,6 +116,7 @@ pub struct LLVMGenerator<'a> {
     module: Module<'a>,
     symbol_table: SymbolTable<'a>,
     current_function: Option<FunctionValue<'a>>,
+    current_return_bb: Option<BasicBlock<'a>>,
     function_table: HashMap<String, FunctionInfo<'a>>,
     procedure_table: HashMap<String, ProcedureInfo<'a>>,
 }
@@ -130,6 +132,7 @@ impl<'a> LLVMGenerator<'a> {
             builder,
             module,
             current_function: None,
+            current_return_bb: None,
             symbol_table: SymbolTable::new(),
             function_table: HashMap::new(),
             procedure_table: HashMap::new(),
@@ -242,8 +245,9 @@ impl<'a> LLVMGenerator<'a> {
         return_alloca: Option<&dyn BasicValue<'a>>,
     ) -> GeneratorResult<()> {
         self.current_function = Some(fun_val);
-        self.builder
-            .position_at_end(self.context.append_basic_block(fun_val, "return"));
+        let return_bb = self.context.append_basic_block(fun_val, "return");
+        self.current_return_bb = Some(return_bb);
+        self.builder.position_at_end(return_bb);
         self.builder.build_return(return_alloca);
         let entry = self.context.append_basic_block(fun_val, "entry");
         self.builder.position_at_end(entry);
@@ -265,6 +269,7 @@ impl<'a> LLVMGenerator<'a> {
 
         self.block(body_block)?;
         self.current_function = None;
+        self.current_return_bb = None;
         Ok(())
     }
 
@@ -481,7 +486,10 @@ impl<'a> LLVMGenerator<'a> {
             }
             Statement::Break => todo!(),
             Statement::Empty => {}
-            Statement::Exit => todo!(),
+            Statement::Exit => {
+                self.builder
+                    .build_unconditional_branch(self.current_return_bb.unwrap());
+            }
             Statement::If {
                 condition,
                 true_branch,
