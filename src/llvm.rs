@@ -486,7 +486,13 @@ impl<'a> LLVMGenerator<'a> {
                 }
                 self.symbol_table.delete_scope();
             }
-            Statement::Break => todo!(),
+            Statement::Break => {
+                if let Some(break_bb) = self.current_break_bb {
+                    self.builder.build_unconditional_branch(break_bb);
+                } else {
+                    Err("Unexpected break outside of loop.")?
+                }
+            }
             Statement::Empty => {}
             Statement::Exit => {
                 self.builder
