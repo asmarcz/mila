@@ -11,7 +11,7 @@ use inkwell::{
     module::Module,
     types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum},
     values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
-    AddressSpace, FloatPredicate, IntPredicate,
+    FloatPredicate, IntPredicate,
 };
 use std::collections::HashMap;
 
@@ -403,15 +403,6 @@ impl<'a> LLVMGenerator<'a> {
                         BasicValueEnum::ArrayValue(_) => todo!(),
                         BasicValueEnum::IntValue(int_val) => int_val.into(),
                         BasicValueEnum::FloatValue(float_val) => float_val.into(),
-                        BasicValueEnum::PointerValue(ptr_val) => self
-                            .builder
-                            .build_load(
-                                self.r#type(symbol_info.r#type.clone())
-                                    .ptr_type(AddressSpace::default()),
-                                ptr_val,
-                                "loadptr",
-                            )
-                            .into(),
                         _ => unreachable!(),
                     };
                     self.builder.build_store(symbol_info.ptr, val);
@@ -576,7 +567,11 @@ impl<'a> LLVMGenerator<'a> {
                 arguments,
             } => todo!(),
             Expression::Variable(name) => match self.symbol_table.find(&name) {
-                Some(SymbolInfo { ptr, .. }) => (*ptr).into(),
+                // TODO What happens if the variable is an array?
+                Some(SymbolInfo { ptr, r#type, .. }) => {
+                    self.builder
+                        .build_load(self.r#type(r#type.clone()), *ptr, "loadvar")
+                }
                 None => Err(format!("Undefined variable '{}'.", name))?,
             },
         })
