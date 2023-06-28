@@ -242,6 +242,9 @@ impl<'a> LLVMGenerator<'a> {
         return_alloca: Option<&dyn BasicValue<'a>>,
     ) -> GeneratorResult<()> {
         self.current_function = Some(fun_val);
+        self.builder
+            .position_at_end(self.context.append_basic_block(fun_val, "return"));
+        self.builder.build_return(return_alloca);
         let entry = self.context.append_basic_block(fun_val, "entry");
         self.builder.position_at_end(entry);
 
@@ -261,7 +264,6 @@ impl<'a> LLVMGenerator<'a> {
         }
 
         self.block(body_block)?;
-        self.builder.build_return(return_alloca);
         self.current_function = None;
         Ok(())
     }
