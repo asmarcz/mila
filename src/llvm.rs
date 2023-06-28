@@ -562,9 +562,9 @@ impl<'a> LLVMGenerator<'a> {
                 let lhs = self.expression(*left)?;
                 let rhs = self.expression(*right)?;
                 if let Ok(op) = <BinaryOp as TryInto<MultiplyingOp>>::try_into(operator) {
-                    self.multiplying_operation(op, lhs, rhs)?.into()
+                    self.multiplying_operation(op, lhs, rhs)?
                 } else if let Ok(op) = <BinaryOp as TryInto<AddingOp>>::try_into(operator) {
-                    self.adding_operation(op, lhs, rhs)?.into()
+                    self.adding_operation(op, lhs, rhs)?
                 } else if let Ok(op) = <BinaryOp as TryInto<RelationalOp>>::try_into(operator) {
                     self.relational_operation(op, lhs, rhs)?.into()
                 } else {
