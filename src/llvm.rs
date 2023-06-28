@@ -11,7 +11,7 @@ use inkwell::{
     module::Module,
     types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum},
     values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
-    FloatPredicate, IntPredicate,
+    AddressSpace, FloatPredicate, IntPredicate,
 };
 use std::collections::HashMap;
 
@@ -393,7 +393,35 @@ impl<'a> LLVMGenerator<'a> {
             Statement::VariableAssignment {
                 variable_name,
                 value,
-            } => todo!(),
+            } => {
+                if let Some(symbol_info) = self.symbol_table.find(&variable_name) {
+                    if !symbol_info.is_mutable {
+                        Err(format!("Cannot assign to constant '{}'.", variable_name))?
+                    }
+                    let res = self.expression(value)?;
+                    let val: BasicValueEnum = match res {
+                        BasicValueEnum::ArrayValue(_) => todo!(),
+                        BasicValueEnum::IntValue(int_val) => int_val.into(),
+                        BasicValueEnum::FloatValue(float_val) => float_val.into(),
+                        BasicValueEnum::PointerValue(ptr_val) => self
+                            .builder
+                            .build_load(
+                                self.r#type(symbol_info.r#type.clone())
+                                    .ptr_type(AddressSpace::default()),
+                                ptr_val,
+                                "loadptr",
+                            )
+                            .into(),
+                        _ => unreachable!(),
+                    };
+                    self.builder.build_store(symbol_info.ptr, val);
+                } else {
+                    Err(format!(
+                        "Assignment to undefined variable '{}'.",
+                        variable_name
+                    ))?
+                }
+            }
             Statement::While { condition, body } => todo!(),
         }
         Ok(())
