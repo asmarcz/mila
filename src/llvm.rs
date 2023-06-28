@@ -765,7 +765,7 @@ impl<'a> LLVMGenerator<'a> {
                 }
                 Constant::Double(dbl) => self.context.f64_type().const_float(dbl).into(),
                 Constant::String(string) => {
-                    self.context.const_string(string.as_bytes(), false).into()
+                    self.context.const_string(string.as_bytes(), true).into()
                 }
             },
             Expression::BinaryOperation {
