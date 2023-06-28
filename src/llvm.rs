@@ -357,13 +357,81 @@ impl<'a> LLVMGenerator<'a> {
         Ok(())
     }
 
+    fn array_index(
+        &self,
+        array_type: ArrayType,
+        index: Expression,
+    ) -> GeneratorResult<IntValue<'a>> {
+        let idx = self.expression(index)?;
+        match idx {
+            BasicValueEnum::ArrayValue(_) => {
+                Err("Arrays are indexable only by integers, got array instead.")?
+            }
+            BasicValueEnum::IntValue(int_val) => {
+                let offset = self
+                    .context
+                    .i64_type()
+                    .const_int(*array_type.range.start() as u64, false);
+                Ok(self.builder.build_int_sub(int_val, offset, "arridxoff"))
+            }
+            BasicValueEnum::FloatValue(_) => {
+                Err("Arrays are indexable only by integers, got double instead.")?
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn array_at(
+        &self,
+        array_ptr: PointerValue<'a>,
+        elem_type: BasicTypeEnum<'a>,
+        index: IntValue<'a>,
+    ) -> PointerValue<'a> {
+        unsafe {
+            self.builder.build_gep(
+                elem_type,
+                array_ptr,
+                &vec![self.context.i64_type().const_zero(), index.into()],
+                "arracc",
+            )
+        }
+    }
+
     fn statement(&mut self, statement: Statement) -> GeneratorResult<()> {
         match statement {
             Statement::ArrayAssignment {
                 array_name,
                 index,
                 value,
-            } => todo!(),
+            } => {
+                if let Some(symbol_info) = self.symbol_table.find(&array_name) {
+                    if !symbol_info.is_mutable {
+                        Err(format!("Cannot assign to constant '{}'.", array_name))?
+                    }
+                    let res = self.expression(value)?;
+                    let array_type = match symbol_info.r#type.clone() {
+                        Type::Array(array_type) => array_type,
+                        _ => unreachable!(),
+                    };
+                    let llvm_elem_type = self.r#type(Type::Simple(array_type.element_type.clone()));
+                    if llvm_elem_type != res.get_type() {
+                        Err(format!(
+                            "Uncompatible type in array assignment. Element type is '{:#?}', got '{}' instead.",
+                            array_type.element_type,
+                            res.get_type(),
+                        ))?
+                    }
+                    // TODO runtime check out of bounds
+                    let final_index = self.array_index(array_type, index)?;
+                    let elem_ptr = self.array_at(symbol_info.ptr, llvm_elem_type, final_index);
+                    self.builder.build_store(elem_ptr, res);
+                } else {
+                    Err(format!(
+                        "Array assignment to undefined variable '{}'.",
+                        array_name
+                    ))?
+                }
+            }
             Statement::Compound(stmts) => {
                 self.symbol_table.new_scope();
                 for stmt in stmts {
@@ -533,7 +601,24 @@ impl<'a> LLVMGenerator<'a> {
 
     fn expression(&self, expression: Expression) -> GeneratorResult<BasicValueEnum<'a>> {
         Ok(match expression {
-            Expression::ArrayAccess { array_name, index } => todo!(),
+            Expression::ArrayAccess { array_name, index } => {
+                match self.symbol_table.find(&array_name) {
+                    Some(SymbolInfo { ptr, r#type, .. }) => {
+                        let array_type = match r#type.clone() {
+                            Type::Array(array_type) => array_type,
+                            _ => unreachable!(),
+                        };
+                        let llvm_elem_type =
+                            self.r#type(Type::Simple(array_type.element_type.clone()));
+                        // TODO runtime check out of bounds
+                        let final_index = self.array_index(array_type, *index)?;
+                        let elem_ptr = self.array_at(*ptr, llvm_elem_type, final_index);
+                        self.builder
+                            .build_load(llvm_elem_type, elem_ptr, "arrloadelem")
+                    }
+                    None => Err(format!("Undefined variable '{}'.", array_name))?,
+                }
+            }
             Expression::Constant(c) => match c {
                 // Yes, casting is the right option..
                 // https://github.com/llvm/llvm-project/blob/llvmorg-15.0.7/llvm/lib/Support/APInt.cpp#L2088
