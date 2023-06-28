@@ -494,7 +494,47 @@ impl<'a> LLVMGenerator<'a> {
                 condition,
                 true_branch,
                 false_branch,
-            } => todo!(),
+            } => {
+                let then_bb = self
+                    .context
+                    .append_basic_block(self.current_function.unwrap(), "if.then");
+                let end_bb = self
+                    .context
+                    .append_basic_block(self.current_function.unwrap(), "if.end");
+                let on_false_bb = if let Some(else_stmt) = false_branch {
+                    let starting_bb = self
+                        .current_function
+                        .unwrap()
+                        .get_last_basic_block()
+                        .unwrap();
+                    let else_bb = self.context.prepend_basic_block(end_bb, "if.else");
+                    self.builder.position_at_end(else_bb);
+                    self.statement(*else_stmt)?;
+                    self.builder.build_unconditional_branch(end_bb);
+                    self.builder.position_at_end(starting_bb);
+                    else_bb
+                } else {
+                    end_bb
+                };
+
+                match self.expression(condition)? {
+                    BasicValueEnum::ArrayValue(_) => todo!(),
+                    BasicValueEnum::IntValue(int_val) => {
+                        self.builder
+                            .build_conditional_branch(int_val, then_bb, on_false_bb);
+                    }
+                    BasicValueEnum::FloatValue(_) => {
+                        Err("Condition must have an integer result, got double instead.")?
+                    }
+                    _ => unreachable!(),
+                }
+
+                self.builder.position_at_end(then_bb);
+                self.statement(*true_branch)?;
+                self.builder.build_unconditional_branch(end_bb);
+
+                self.builder.position_at_end(end_bb);
+            }
             Statement::For {
                 control_variable,
                 initial_value,
