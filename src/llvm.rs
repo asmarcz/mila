@@ -234,7 +234,7 @@ impl<'a> LLVMGenerator<'a> {
         Ok(fn_val)
     }
 
-    fn content_for_function_value(
+    fn content_for_function_body(
         &mut self,
         fun_val: FunctionValue<'a>,
         prototype: &Prototype,
@@ -315,7 +315,7 @@ impl<'a> LLVMGenerator<'a> {
                                 ptr: alloca,
                             },
                         )?;
-                        self.content_for_function_value(
+                        self.content_for_function_body(
                             function,
                             &decl.prototype,
                             body_block,
@@ -336,7 +336,7 @@ impl<'a> LLVMGenerator<'a> {
                         },
                     );
                     if let Some(body_block) = decl.body {
-                        self.content_for_function_value(
+                        self.content_for_function_body(
                             procedure,
                             &decl.prototype,
                             body_block,
