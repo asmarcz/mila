@@ -117,6 +117,7 @@ pub struct LLVMGenerator<'a> {
     symbol_table: SymbolTable<'a>,
     current_function: Option<FunctionValue<'a>>,
     current_return_bb: Option<BasicBlock<'a>>,
+    current_break_bb: Option<BasicBlock<'a>>,
     function_table: HashMap<String, FunctionInfo<'a>>,
     procedure_table: HashMap<String, ProcedureInfo<'a>>,
 }
@@ -133,6 +134,7 @@ impl<'a> LLVMGenerator<'a> {
             module,
             current_function: None,
             current_return_bb: None,
+            current_break_bb: None,
             symbol_table: SymbolTable::new(),
             function_table: HashMap::new(),
             procedure_table: HashMap::new(),
@@ -579,7 +581,39 @@ impl<'a> LLVMGenerator<'a> {
                     ))?
                 }
             }
-            Statement::While { condition, body } => todo!(),
+            Statement::While { condition, body } => {
+                let cond_bb = self
+                    .context
+                    .append_basic_block(self.current_function.unwrap(), "while.cond");
+                let body_bb = self
+                    .context
+                    .append_basic_block(self.current_function.unwrap(), "while.body");
+                let end_bb = self
+                    .context
+                    .append_basic_block(self.current_function.unwrap(), "while.end");
+
+                self.builder.build_unconditional_branch(cond_bb);
+
+                self.builder.position_at_end(cond_bb);
+                match self.expression(condition)? {
+                    BasicValueEnum::ArrayValue(_) => todo!(),
+                    BasicValueEnum::IntValue(int_val) => {
+                        self.builder
+                            .build_conditional_branch(int_val, body_bb, end_bb);
+                    }
+                    BasicValueEnum::FloatValue(_) => {
+                        Err("Condition must have an integer result, got double instead.")?
+                    }
+                    _ => unreachable!(),
+                }
+
+                let old_break_bb = self.current_break_bb;
+                self.current_break_bb = Some(end_bb);
+                self.builder.position_at_end(body_bb);
+                self.statement(*body)?;
+                self.builder.build_unconditional_branch(cond_bb);
+                self.current_break_bb = old_break_bb;
+            }
         }
         Ok(())
     }
