@@ -221,6 +221,7 @@ pub struct Program {
 
 const EOI_ERR: &str = "Unexpected EOI.";
 
+// TODO fix formatting when calling with .to_string() as an argument
 macro_rules! unexpected_token {
     ($($arg:tt)*) => {{
         Err(format!("Expected '{:#?}', got '{:#?}' instead.", $($arg)*))
