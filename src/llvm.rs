@@ -257,12 +257,24 @@ impl<'a> LLVMGenerator<'a> {
 
     fn create_alloca(&self, name: &str, typ: Type) -> GeneratorResult<PointerValue<'a>> {
         if self.symbol_table.is_global_scope() {
-            // TODO should initialize??
-            let ptr = self
-                .module
-                .add_global(self.r#type(typ), None, name)
-                .as_pointer_value();
-            Ok(ptr)
+            // Yes, should have initialize..
+            let llvm_type = self.r#type(typ.clone());
+            let global = self.module.add_global(llvm_type, None, name);
+            match typ {
+                Type::Array(ArrayType {
+                    range,
+                    element_type,
+                }) => {
+                    let initializer = self
+                        .r#type(Type::Simple(element_type))
+                        .array_type(range.count() as u32)
+                        .get_undef();
+                    global.set_initializer(&initializer);
+                }
+                t @ Type::Simple(_) => global.set_initializer(&self.r#type(t).const_zero()),
+            };
+
+            Ok(global.as_pointer_value())
         } else {
             let fn_value = self
                 .current_function
@@ -498,12 +510,8 @@ impl<'a> LLVMGenerator<'a> {
         index: IntValue<'a>,
     ) -> PointerValue<'a> {
         unsafe {
-            self.builder.build_gep(
-                elem_type,
-                array_ptr,
-                &vec![self.context.i64_type().const_zero(), index.into()],
-                "arracc",
-            )
+            self.builder
+                .build_gep(elem_type, array_ptr, &[index.into()], "arracc")
         }
     }
 
