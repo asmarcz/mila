@@ -368,6 +368,7 @@ impl<'a> LLVMGenerator<'a> {
                 Declaration::Function(decl) => {
                     check_function_errors!(self.function_table, &decl.prototype, "Function");
 
+                    self.symbol_table.new_scope();
                     let cloned_decl = decl.clone();
                     let function = self.prototype(&decl.prototype)?;
                     self.function_table.insert(
@@ -385,10 +386,12 @@ impl<'a> LLVMGenerator<'a> {
                             true,
                         )?;
                     }
+                    self.symbol_table.delete_scope();
                 }
                 Declaration::Procedure(decl) => {
                     check_function_errors!(self.procedure_table, &decl.prototype, "Procedure");
 
+                    self.symbol_table.new_scope();
                     let cloned_decl = decl.clone();
                     let procedure = self.prototype(&decl.prototype)?;
                     self.procedure_table.insert(
@@ -406,6 +409,7 @@ impl<'a> LLVMGenerator<'a> {
                             false,
                         )?;
                     }
+                    self.symbol_table.delete_scope();
                 }
                 Declaration::Variables(vars) => {
                     for (name, typ) in vars {
