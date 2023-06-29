@@ -2,7 +2,7 @@ use crate::{
     lexer::{AddingOp, Constant, MultiplyingOp, RelationalOp},
     parser::{
         ArrayType, BinaryOp, Block, Declaration, Expression, FunctionDeclaration,
-        ProcedureDeclaration, Program, Prototype, SimpleType, Statement, Type,
+        ProcedureDeclaration, Program, Prototype, RangeDirection, SimpleType, Statement, Type,
     },
 };
 use const_format::concatcp;
@@ -651,7 +651,81 @@ impl<'a> LLVMGenerator<'a> {
                 range_direction,
                 final_value,
                 body,
-            } => todo!(),
+            } => {
+                let cond_bb = self
+                    .context
+                    .append_basic_block(self.current_function.unwrap(), "for.cond");
+                let body_bb = self
+                    .context
+                    .append_basic_block(self.current_function.unwrap(), "for.body");
+                let end_bb = self
+                    .context
+                    .append_basic_block(self.current_function.unwrap(), "for.end");
+
+                let (r#type, is_mutable, ctrl_var_ptr) = {
+                    let Some(SymbolInfo { r#type, is_mutable, ptr }) = self.symbol_table.find(&control_variable) else {
+                        Err(format!("Undefined variable '{}'.", control_variable))?
+                    };
+                    (r#type.clone(), is_mutable, *ptr)
+                };
+                if !is_mutable {
+                    Err(format!(
+                        "For loop control variable must not be a constant, got '{}'.",
+                        control_variable
+                    ))?
+                }
+                if r#type != Type::Simple(SimpleType::Integer) {
+                    Err(format!(
+                        "For loop control variable must be an integer, got '{:#?}' instead.",
+                        r#type,
+                    ))?
+                }
+                self.statement(Statement::VariableAssignment {
+                    variable_name: control_variable,
+                    value: initial_value,
+                })?;
+
+                let final_val = match self.expression(final_value)? {
+                    BasicValueEnum::IntValue(int_val) => int_val,
+                    t => Err(format!(
+                        "For loop final value must be an integer, got '{}' instead.",
+                        t
+                    ))?,
+                };
+
+                self.builder.build_unconditional_branch(cond_bb);
+                self.builder.position_at_end(cond_bb);
+                let curr_val = self
+                    .builder
+                    .build_load(final_val.get_type(), ctrl_var_ptr, "loadctrl")
+                    .into_int_value();
+                let (pred, delta) = match range_direction {
+                    RangeDirection::Down => (IntPredicate::SGE, -1 as i64),
+                    RangeDirection::Up => (IntPredicate::SLE, 1 as i64),
+                };
+                let cmp_res = self
+                    .builder
+                    .build_int_compare(pred, curr_val, final_val, "ctrcmp");
+                self.builder
+                    .build_conditional_branch(cmp_res, body_bb, end_bb);
+
+                let old_break_bb = self.current_break_bb;
+                self.current_break_bb = Some(end_bb);
+                self.builder.position_at_end(body_bb);
+                self.statement(*body)?;
+                let delta_val = self
+                    .r#type(Type::Simple(SimpleType::Integer))
+                    .into_int_type()
+                    .const_int(delta as u64, false);
+                self.builder.build_store(
+                    ctrl_var_ptr,
+                    self.builder.build_int_add(curr_val, delta_val, "fordelta"),
+                );
+                self.builder.build_unconditional_branch(cond_bb);
+                self.current_break_bb = old_break_bb;
+
+                self.builder.position_at_end(end_bb);
+            }
             Statement::ProcedureCall {
                 procedure_name,
                 arguments,
