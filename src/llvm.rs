@@ -459,7 +459,7 @@ impl<'a> LLVMGenerator<'a> {
             ))?
         }
         let mut compiled_args = Vec::with_capacity(arguments.len());
-        for (i, (arg, (_, typ))) in arguments
+        for (i, (arg, (arg_name, typ))) in arguments
             .iter()
             .zip(prototype.parameters.iter().by_ref())
             .enumerate()
@@ -468,8 +468,9 @@ impl<'a> LLVMGenerator<'a> {
             let expected = self.r#type(typ.clone());
             if res.get_type() != expected {
                 Err(format!(
-                    "In a call to '{}', argument on position {} has mismatched type. Expected '{}', got '{}' instead.",
+                    "In a call to '{}', argument '{}' on position {} has mismatched type. Expected '{}', got '{}' instead.",
                     fun_name,
+                    arg_name,
                     i + 1,
                     expected,
                     res.get_type()
