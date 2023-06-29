@@ -12,7 +12,7 @@ use inkwell::{
     context::Context,
     module::Module,
     types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum},
-    values::{BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
     FloatPredicate, IntPredicate,
 };
 use std::collections::HashMap;
@@ -255,7 +255,12 @@ impl<'a> LLVMGenerator<'a> {
         Ok(())
     }
 
-    fn create_alloca(&self, name: &str, typ: Type) -> GeneratorResult<PointerValue<'a>> {
+    fn create_alloca(
+        &self,
+        name: &str,
+        typ: Type,
+        initializer: Option<&dyn BasicValue<'a>>,
+    ) -> GeneratorResult<PointerValue<'a>> {
         if self.symbol_table.is_global_scope() {
             // Yes, should have initialize..
             let llvm_type = self.r#type(typ.clone());
@@ -265,13 +270,15 @@ impl<'a> LLVMGenerator<'a> {
                     range,
                     element_type,
                 }) => {
-                    let initializer = self
+                    let default_initializer = self
                         .r#type(Type::Simple(element_type))
                         .array_type(range.count() as u32)
                         .get_undef();
-                    global.set_initializer(&initializer);
+                    global.set_initializer(initializer.unwrap_or(&default_initializer));
                 }
-                t @ Type::Simple(_) => global.set_initializer(&self.r#type(t).const_zero()),
+                t @ Type::Simple(_) => {
+                    global.set_initializer(initializer.unwrap_or(&self.r#type(t).const_zero()))
+                }
             };
 
             Ok(global.as_pointer_value())
@@ -344,7 +351,7 @@ impl<'a> LLVMGenerator<'a> {
             // introduce variable representing return value
             let typ = prototype.return_type.clone().unwrap();
             let name = prototype.name.clone();
-            let return_alloca = self.create_alloca(&name, typ.clone())?;
+            let return_alloca = self.create_alloca(&name, typ.clone(), None)?;
             self.symbol_table.insert(
                 name,
                 SymbolInfo {
@@ -377,7 +384,7 @@ impl<'a> LLVMGenerator<'a> {
         for (arg_val, (arg_name, arg_typ)) in
             fun_val.get_param_iter().zip(prototype.parameters.iter())
         {
-            let alloca = self.create_alloca(&arg_name, arg_typ.clone())?;
+            let alloca = self.create_alloca(&arg_name, arg_typ.clone(), None)?;
             self.builder.build_store(alloca, arg_val);
             self.symbol_table.insert(
                 arg_name.clone(),
@@ -408,8 +415,13 @@ impl<'a> LLVMGenerator<'a> {
                             BasicValueEnum::FloatValue(_) => Type::Simple(SimpleType::Double),
                             _ => Err("Unexpected expression type in constant declaration.")?,
                         };
-                        let ptr = self.create_alloca(&name, typ.clone())?;
-                        self.builder.build_store(ptr, val);
+                        let ptr = if self.symbol_table.is_global_scope() {
+                            self.create_alloca(&name, typ.clone(), Some(&val))?
+                        } else {
+                            let ptr = self.create_alloca(&name, typ.clone(), None)?;
+                            self.builder.build_store(ptr, val);
+                            ptr
+                        };
                         let symbol_info = SymbolInfo {
                             is_mutable: false,
                             r#type: typ,
@@ -468,7 +480,7 @@ impl<'a> LLVMGenerator<'a> {
                     for (name, typ) in vars {
                         let symbol_info = SymbolInfo {
                             is_mutable: true,
-                            ptr: self.create_alloca(name.as_str(), typ.clone())?,
+                            ptr: self.create_alloca(name.as_str(), typ.clone(), None)?,
                             r#type: typ,
                         };
                         self.symbol_table.insert(name.clone(), symbol_info)?;
