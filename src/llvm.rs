@@ -12,7 +12,7 @@ use inkwell::{
     context::Context,
     module::Module,
     types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum},
-    values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    values::{BasicValueEnum, FunctionValue, IntValue, PointerValue},
     FloatPredicate, IntPredicate,
 };
 use llvm_sys_150::support::LLVMAddSymbol;
@@ -281,14 +281,44 @@ impl<'a> LLVMGenerator<'a> {
         fun_val: FunctionValue<'a>,
         prototype: &Prototype,
         body_block: Block,
-        return_alloca: Option<&dyn BasicValue<'a>>,
+        generate_return_register: bool,
     ) -> GeneratorResult<()> {
         self.current_function = Some(fun_val);
+        let entry = self.context.append_basic_block(fun_val, "entry");
+        self.builder.position_at_end(entry);
+
+        let return_alloca_opt = if generate_return_register {
+            // introduce variable representing return value
+            let typ = prototype.return_type.clone().unwrap();
+            let name = prototype.name.clone();
+            let return_alloca = self.create_alloca(&name, typ.clone())?;
+            self.symbol_table.insert(
+                name,
+                SymbolInfo {
+                    r#type: typ,
+                    is_mutable: true,
+                    ptr: return_alloca,
+                },
+            )?;
+            Some(return_alloca)
+        } else {
+            None
+        };
+
         let return_bb = self.context.append_basic_block(fun_val, "return");
         self.current_return_bb = Some(return_bb);
         self.builder.position_at_end(return_bb);
-        self.builder.build_return(return_alloca);
-        let entry = self.context.append_basic_block(fun_val, "entry");
+        if let Some(return_alloca) = return_alloca_opt {
+            let ret_val = self.builder.build_load(
+                self.r#type(prototype.return_type.clone().unwrap()),
+                return_alloca,
+                "loadretval",
+            );
+            self.builder.build_return(Some(&ret_val));
+        } else {
+            self.builder.build_return(None);
+        }
+
         self.builder.position_at_end(entry);
 
         for (arg_val, (arg_name, arg_typ)) in
@@ -307,6 +337,7 @@ impl<'a> LLVMGenerator<'a> {
         }
 
         self.block(body_block)?;
+        self.builder.build_unconditional_branch(return_bb);
         self.current_function = None;
         self.current_return_bb = None;
         Ok(())
@@ -347,23 +378,11 @@ impl<'a> LLVMGenerator<'a> {
                         },
                     );
                     if let Some(body_block) = decl.body {
-                        // introduce variable representing return value
-                        let typ = decl.prototype.return_type.clone().unwrap();
-                        let name = decl.prototype.name.clone();
-                        let alloca = self.create_alloca(&name, typ.clone())?;
-                        self.symbol_table.insert(
-                            name,
-                            SymbolInfo {
-                                r#type: typ,
-                                is_mutable: true,
-                                ptr: alloca,
-                            },
-                        )?;
                         self.content_for_function_body(
                             function,
                             &decl.prototype,
                             body_block,
-                            Some(&alloca),
+                            true,
                         )?;
                     }
                 }
@@ -384,7 +403,7 @@ impl<'a> LLVMGenerator<'a> {
                             procedure,
                             &decl.prototype,
                             body_block,
-                            None,
+                            false,
                         )?;
                     }
                 }
