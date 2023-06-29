@@ -1,3 +1,4 @@
+use self::stdlib::{EXTERNAL_PROCS, FN_NAME_PREFIX};
 use crate::{
     lexer::{AddingOp, Constant, MultiplyingOp, RelationalOp},
     parser::{
@@ -14,7 +15,10 @@ use inkwell::{
     values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
     FloatPredicate, IntPredicate,
 };
+use llvm_sys_150::support::LLVMAddSymbol;
 use std::collections::HashMap;
+
+mod stdlib;
 
 struct SymbolInfo<'a> {
     r#type: Type,
@@ -141,7 +145,36 @@ impl<'a> LLVMGenerator<'a> {
         }
     }
 
-    fn generate_ir(mut self, program: Program) -> GeneratorResult<String> {
+    fn include_stdlib(&mut self) {
+        for proc in &EXTERNAL_PROCS {
+            unsafe { LLVMAddSymbol(proc.c_name.as_ptr(), proc.c_fn_ptr) }
+            self.procedure_table.insert(
+                proc.name.to_string(),
+                ProcedureInfo {
+                    declaration: ProcedureDeclaration {
+                        prototype: Prototype {
+                            name: proc.name.to_string(),
+                            parameters: vec![("_".to_string(), proc.param_type.clone())],
+                            return_type: None,
+                        },
+                        body: None,
+                    },
+                    value: self.module.add_function(
+                        proc.name,
+                        self.context
+                            .void_type()
+                            .fn_type(&[(self.r#type(proc.param_type.clone()).into())], false),
+                        None,
+                    ),
+                },
+            );
+        }
+    }
+
+    fn generate_ir(mut self, program: Program, use_stdlib: bool) -> GeneratorResult<String> {
+        if use_stdlib {
+            self.include_stdlib();
+        }
         self.program(program)?;
         self.module.verify().map_err(|s| s.to_string())?;
         Ok(self.module.print_to_string().to_string())
@@ -231,7 +264,11 @@ impl<'a> LLVMGenerator<'a> {
                 .void_type()
                 .fn_type(param_types.as_slice(), false),
         };
-        let fn_val = self.module.add_function(&prototype.name, fn_type, None);
+        let fn_val = self.module.add_function(
+            &format!("{}{}", FN_NAME_PREFIX, &prototype.name),
+            fn_type,
+            None,
+        );
         let arg_names = prototype.parameters.iter().map(|p| p.0.as_str());
         for (arg, arg_name) in fn_val.get_param_iter().zip(arg_names) {
             arg.set_name(arg_name);
@@ -831,5 +868,5 @@ impl<'a> LLVMGenerator<'a> {
 pub fn generate_ir(program: Program) -> GeneratorResult<String> {
     let context = Context::create();
     let llvm_generator = LLVMGenerator::new(&context);
-    llvm_generator.generate_ir(program)
+    llvm_generator.generate_ir(program, true)
 }
