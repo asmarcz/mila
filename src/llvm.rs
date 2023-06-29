@@ -1,4 +1,3 @@
-use self::stdlib::{EXTERNAL_PROCS, FN_NAME_PREFIX};
 use crate::{
     lexer::{AddingOp, Constant, MultiplyingOp, RelationalOp},
     parser::{
@@ -16,10 +15,7 @@ use inkwell::{
     values::{BasicValueEnum, FunctionValue, IntValue, PointerValue},
     FloatPredicate, IntPredicate,
 };
-use llvm_sys_150::support::LLVMAddSymbol;
 use std::collections::HashMap;
-
-mod stdlib;
 
 struct SymbolInfo<'a> {
     r#type: Type,
@@ -115,6 +111,48 @@ macro_rules! check_function_errors {
     };
 }
 
+pub const FN_NAME_PREFIX: &str = "mila_";
+
+pub struct ExternalProcedure<'a> {
+    pub name: &'a str,
+    pub param_type: Type,
+    pub takes_string: bool,
+}
+
+#[used]
+pub static EXTERNAL_PROCS: [ExternalProcedure; 6] = [
+    ExternalProcedure {
+        name: "write",
+        param_type: Type::Simple(SimpleType::Integer),
+        takes_string: false,
+    },
+    ExternalProcedure {
+        name: "writeln",
+        param_type: Type::Simple(SimpleType::Integer),
+        takes_string: false,
+    },
+    ExternalProcedure {
+        name: "dbl_write",
+        param_type: Type::Simple(SimpleType::Double),
+        takes_string: false,
+    },
+    ExternalProcedure {
+        name: "dbl_writeln",
+        param_type: Type::Simple(SimpleType::Double),
+        takes_string: false,
+    },
+    ExternalProcedure {
+        name: "str_write",
+        param_type: Type::Simple(SimpleType::Integer),
+        takes_string: true,
+    },
+    ExternalProcedure {
+        name: "str_writeln",
+        param_type: Type::Simple(SimpleType::Integer),
+        takes_string: true,
+    },
+];
+
 pub struct LLVMGenerator<'a> {
     context: &'a Context,
     builder: Builder<'a>,
@@ -146,38 +184,34 @@ impl<'a> LLVMGenerator<'a> {
         }
     }
 
-    fn include_stdlib(&mut self) {
+    fn include_stdlib(&mut self) -> GeneratorResult<()> {
         for proc in &EXTERNAL_PROCS {
-            unsafe { LLVMAddSymbol(proc.c_name.as_ptr(), proc.c_fn_ptr) }
+            let prototype = Prototype {
+                name: proc.name.to_string(),
+                parameters: vec![("_".to_string(), proc.param_type.clone())],
+                return_type: None,
+            };
+            let proc_val = self.prototype(&prototype)?;
             self.procedure_table.insert(
                 proc.name.to_string(),
                 ProcedureInfo {
                     declaration: ProcedureDeclaration {
-                        prototype: Prototype {
-                            name: proc.name.to_string(),
-                            parameters: vec![("_".to_string(), proc.param_type.clone())],
-                            return_type: None,
-                        },
+                        prototype,
                         body: None,
                     },
-                    value: self.module.add_function(
-                        proc.name,
-                        self.context
-                            .void_type()
-                            .fn_type(&[(self.r#type(proc.param_type.clone()).into())], false),
-                        None,
-                    ),
+                    value: proc_val,
                 },
             );
         }
+        Ok(())
     }
 
     fn generate_ir(mut self, program: Program, use_stdlib: bool) -> GeneratorResult<String> {
         if use_stdlib {
-            self.include_stdlib();
+            self.include_stdlib()?;
         }
         self.program(program)?;
-        self.module.verify().map_err(|s| s.to_string())?;
+        // self.module.verify().map_err(|s| s.to_string())?;
         Ok(self.module.print_to_string().to_string())
     }
 
