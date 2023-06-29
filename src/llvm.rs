@@ -676,6 +676,8 @@ impl<'a> LLVMGenerator<'a> {
                 self.statement(*body)?;
                 self.builder.build_unconditional_branch(cond_bb);
                 self.current_break_bb = old_break_bb;
+
+                self.builder.position_at_end(end_bb);
             }
         }
         Ok(())
