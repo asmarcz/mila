@@ -4,3 +4,7 @@ build
 
 /target
 .vscode
+
+a.ir
+a.out
+a.s
