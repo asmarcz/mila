@@ -1,9 +1,13 @@
 program doubles;
 
 var x, y, z : double;
+var a, b : integer;
 
 begin
 	x := 3.14;
 	y := 3.;
 	z := -0.5;
+	dbl_writeln(x);
+	dbl_write(y);
+	dbl_write(z);
 end.
