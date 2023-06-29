@@ -6,6 +6,7 @@ use crate::{
         ProcedureDeclaration, Program, Prototype, SimpleType, Statement, Type,
     },
 };
+use const_format::concatcp;
 use inkwell::{
     basic_block::BasicBlock,
     builder::Builder,
@@ -203,6 +204,12 @@ impl<'a> LLVMGenerator<'a> {
             body: Some(block_without_declarations),
         };
         self.declarations(vec![Declaration::Function(main_decl)])?;
+        // fix the name of main function
+        self.module
+            .get_function(concatcp!(FN_NAME_PREFIX, "main"))
+            .unwrap()
+            .as_global_value()
+            .set_name("main");
         Ok(())
     }
 
