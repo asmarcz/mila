@@ -17,7 +17,7 @@ pub extern "C" fn mila_dbl_write(double: f64) {
 
 #[no_mangle]
 pub extern "C" fn mila_dbl_writeln(double: f64) {
-    print!("{}", double);
+    println!("{}", double);
 }
 
 #[no_mangle]
