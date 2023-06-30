@@ -4,6 +4,26 @@ use std::{
 };
 
 #[no_mangle]
+pub extern "C" fn mila_inc(int: i64) -> i64 {
+    int + 1
+}
+
+#[no_mangle]
+pub extern "C" fn mila_dec(int: i64) -> i64 {
+    int - 1
+}
+
+#[no_mangle]
+pub extern "C" fn mila_int(double: f64) -> i64 {
+    double as i64
+}
+
+#[no_mangle]
+pub extern "C" fn mila_float(int: i64) -> f64 {
+    int as f64
+}
+
+#[no_mangle]
 pub extern "C" fn mila_write(int: i64) {
     print!("{}", int);
     let _ = stdout().flush();

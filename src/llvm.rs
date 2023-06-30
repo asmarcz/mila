@@ -120,7 +120,6 @@ pub struct ExternalProcedure<'a> {
     pub takes_string: bool,
 }
 
-#[used]
 pub static EXTERNAL_PROCS: [ExternalProcedure; 6] = [
     ExternalProcedure {
         name: "write",
@@ -151,6 +150,35 @@ pub static EXTERNAL_PROCS: [ExternalProcedure; 6] = [
         name: "str_writeln",
         param_type: Type::Simple(SimpleType::Integer),
         takes_string: true,
+    },
+];
+
+pub struct ExternalFunction<'a> {
+    pub name: &'a str,
+    pub param_type: Type,
+    pub return_type: Type,
+}
+
+pub static EXTERNAL_FUNCS: [ExternalFunction; 4] = [
+    ExternalFunction {
+        name: "inc",
+        param_type: Type::Simple(SimpleType::Integer),
+        return_type: Type::Simple(SimpleType::Integer),
+    },
+    ExternalFunction {
+        name: "dec",
+        param_type: Type::Simple(SimpleType::Integer),
+        return_type: Type::Simple(SimpleType::Integer),
+    },
+    ExternalFunction {
+        name: "int",
+        param_type: Type::Simple(SimpleType::Double),
+        return_type: Type::Simple(SimpleType::Integer),
+    },
+    ExternalFunction {
+        name: "float",
+        param_type: Type::Simple(SimpleType::Integer),
+        return_type: Type::Simple(SimpleType::Double),
     },
 ];
 
@@ -202,6 +230,24 @@ impl<'a> LLVMGenerator<'a> {
                     },
                     value: proc_val,
                     takes_string: proc.takes_string,
+                },
+            );
+        }
+        for func in &EXTERNAL_FUNCS {
+            let prototype = Prototype {
+                name: func.name.to_string(),
+                parameters: vec![("_".to_string(), func.param_type.clone())],
+                return_type: Some(func.return_type.clone()),
+            };
+            let fn_val = self.prototype(&prototype, false)?;
+            self.function_table.insert(
+                func.name.to_string(),
+                FunctionInfo {
+                    declaration: FunctionDeclaration {
+                        prototype,
+                        body: None,
+                    },
+                    value: fn_val,
                 },
             );
         }
