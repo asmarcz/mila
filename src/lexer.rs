@@ -190,7 +190,7 @@ impl Lexer {
                 continue;
             }
             let opt = Self::string(&mut iter)?
-                .or_else(||Self::symbol(&mut iter))
+                .or_else(|| Self::symbol(&mut iter))
                 .or_else(|| Self::word(&mut iter))
                 .or_else(|| Self::number(&mut iter));
             if let Some(token) = opt {
