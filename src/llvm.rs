@@ -521,8 +521,15 @@ impl<'a> LLVMGenerator<'a> {
                     check_function_errors!(self.function_table, &decl.prototype, "Function");
 
                     self.symbol_table.new_scope();
+                    let function = if let Some(FunctionInfo { value, .. }) =
+                        self.function_table.get(&decl.prototype.name)
+                    {
+                        *value
+                    } else {
+                        self.prototype(&decl.prototype, false, false)?
+                    };
+
                     let cloned_decl = decl.clone();
-                    let function = self.prototype(&decl.prototype, false, false)?;
                     self.function_table.insert(
                         decl.prototype.name.clone(),
                         FunctionInfo {
@@ -1113,14 +1120,8 @@ impl<'a> LLVMGenerator<'a> {
                     value: fn_val,
                 }) = self.function_table.get(&function_name)
                 {
-                    self.function_call(
-                        *fn_val,
-                        &function_name,
-                        prototype,
-                        &arguments,
-                        false,
-                    )?
-                    .unwrap()
+                    self.function_call(*fn_val, &function_name, prototype, &arguments, false)?
+                        .unwrap()
                 } else {
                     Err(format!("Undefined procedure '{}'.", function_name))?
                 }
