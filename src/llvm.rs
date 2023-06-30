@@ -31,6 +31,7 @@ struct FunctionInfo<'a> {
 struct ProcedureInfo<'a> {
     declaration: ProcedureDeclaration,
     value: FunctionValue<'a>,
+    takes_string: bool,
 }
 
 enum TableError {
@@ -191,7 +192,7 @@ impl<'a> LLVMGenerator<'a> {
                 parameters: vec![("_".to_string(), proc.param_type.clone())],
                 return_type: None,
             };
-            let proc_val = self.prototype(&prototype)?;
+            let proc_val = self.prototype(&prototype, true)?;
             self.procedure_table.insert(
                 proc.name.to_string(),
                 ProcedureInfo {
@@ -200,6 +201,7 @@ impl<'a> LLVMGenerator<'a> {
                         body: None,
                     },
                     value: proc_val,
+                    takes_string: proc.takes_string,
                 },
             );
         }
@@ -309,12 +311,26 @@ impl<'a> LLVMGenerator<'a> {
         }
     }
 
-    fn prototype(&self, prototype: &Prototype) -> GeneratorResult<FunctionValue<'a>> {
-        let param_types = prototype
-            .parameters
-            .iter()
-            .map(|p| self.r#type(p.1.clone()).into())
-            .collect::<Vec<BasicMetadataTypeEnum>>();
+    fn prototype(
+        &self,
+        prototype: &Prototype,
+        takes_string: bool,
+    ) -> GeneratorResult<FunctionValue<'a>> {
+        let param_types = if !takes_string {
+            prototype
+                .parameters
+                .iter()
+                .map(|p| self.r#type(p.1.clone()).into())
+                .collect::<Vec<BasicMetadataTypeEnum>>()
+        } else {
+            let b: BasicMetadataTypeEnum = self
+                .context
+                .i8_type()
+                .array_type(1)
+                .as_basic_type_enum()
+                .into();
+            vec![b]
+        };
         let fn_type = match prototype.return_type {
             Some(ref t) => self
                 .r#type(t.clone())
@@ -435,7 +451,7 @@ impl<'a> LLVMGenerator<'a> {
 
                     self.symbol_table.new_scope();
                     let cloned_decl = decl.clone();
-                    let function = self.prototype(&decl.prototype)?;
+                    let function = self.prototype(&decl.prototype, false)?;
                     self.function_table.insert(
                         decl.prototype.name.clone(),
                         FunctionInfo {
@@ -458,12 +474,13 @@ impl<'a> LLVMGenerator<'a> {
 
                     self.symbol_table.new_scope();
                     let cloned_decl = decl.clone();
-                    let procedure = self.prototype(&decl.prototype)?;
+                    let procedure = self.prototype(&decl.prototype, false)?;
                     self.procedure_table.insert(
                         decl.prototype.name.clone(),
                         ProcedureInfo {
                             declaration: cloned_decl,
                             value: procedure,
+                            takes_string: false,
                         },
                     );
                     if let Some(body_block) = decl.body {
@@ -533,6 +550,7 @@ impl<'a> LLVMGenerator<'a> {
         fun_name: &str,
         prototype: &Prototype,
         arguments: &Vec<Expression>,
+        takes_string: bool,
     ) -> GeneratorResult<Option<BasicValueEnum<'a>>> {
         if prototype.parameters.len() != arguments.len() {
             Err(format!(
@@ -550,7 +568,7 @@ impl<'a> LLVMGenerator<'a> {
         {
             let res = self.expression(arg.clone())?;
             let expected = self.r#type(typ.clone());
-            if res.get_type() != expected {
+            if res.get_type() != expected && !(res.get_type().is_pointer_type() && takes_string) {
                 Err(format!(
                     "In a call to '{}', argument '{}' on position {} has mismatched type. Expected '{}', got '{}' instead.",
                     fun_name,
@@ -753,9 +771,16 @@ impl<'a> LLVMGenerator<'a> {
                 if let Some(ProcedureInfo {
                     declaration: ProcedureDeclaration { prototype, .. },
                     value: fn_val,
+                    takes_string,
                 }) = self.procedure_table.get(&procedure_name)
                 {
-                    self.function_call(*fn_val, &procedure_name, prototype, &arguments)?;
+                    self.function_call(
+                        *fn_val,
+                        &procedure_name,
+                        prototype,
+                        &arguments,
+                        *takes_string,
+                    )?;
                 } else {
                     Err(format!("Undefined procedure '{}'.", procedure_name))?
                 }
@@ -963,7 +988,10 @@ impl<'a> LLVMGenerator<'a> {
                 }
                 Constant::Double(dbl) => self.context.f64_type().const_float(dbl).into(),
                 Constant::String(string) => {
-                    self.context.const_string(string.as_bytes(), true).into()
+                    let array_val = self.context.const_string(string.as_bytes(), true);
+                    let global = self.module.add_global(array_val.get_type(), None, "strlit");
+                    global.set_initializer(&array_val);
+                    global.as_pointer_value().into()
                 }
             },
             Expression::BinaryOperation {
@@ -992,7 +1020,7 @@ impl<'a> LLVMGenerator<'a> {
                     value: fn_val,
                 }) = self.function_table.get(&function_name)
                 {
-                    self.function_call(*fn_val, &function_name, prototype, &arguments)?
+                    self.function_call(*fn_val, &function_name, prototype, &arguments, false)?
                         .unwrap()
                 } else {
                     Err(format!("Undefined procedure '{}'.", function_name))?
