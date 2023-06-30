@@ -1,16 +1,20 @@
 use std::{
-    ffi::{c_char, CStr},
-    io::{stdout, Write},
+    ffi::{c_char, CStr, c_longlong},
+    io::{stdout, Write, stdin},
 };
 
 #[no_mangle]
-pub extern "C" fn mila_inc(int: i64) -> i64 {
-    int + 1
+pub extern "C" fn mila_inc(int: *mut c_longlong) {
+    unsafe {
+        *int = *int - 1;
+    }
 }
 
 #[no_mangle]
-pub extern "C" fn mila_dec(int: i64) -> i64 {
-    int - 1
+pub extern "C" fn mila_dec(int: *mut c_longlong) {
+    unsafe {
+        *int = *int - 1;
+    }
 }
 
 #[no_mangle]
@@ -57,5 +61,15 @@ pub extern "C" fn mila_str_write(ptr: *const c_char) {
 pub extern "C" fn mila_str_writeln(ptr: *const c_char) {
     unsafe {
         println!("{}", CStr::from_ptr(ptr).to_str().unwrap());
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn mila_readln(int: *mut c_longlong) {
+    let mut buf = String::new();
+    stdin().read_line(&mut buf).unwrap();
+    let read: i64 = buf.trim().parse().unwrap();
+    unsafe {
+        *int = read;
     }
 }

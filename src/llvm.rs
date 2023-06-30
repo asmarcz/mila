@@ -13,7 +13,7 @@ use inkwell::{
     module::Module,
     types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum},
     values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
-    FloatPredicate, IntPredicate,
+    AddressSpace, FloatPredicate, IntPredicate,
 };
 use std::collections::HashMap;
 
@@ -32,6 +32,7 @@ struct ProcedureInfo<'a> {
     declaration: ProcedureDeclaration,
     value: FunctionValue<'a>,
     takes_string: bool,
+    takes_reference: bool,
 }
 
 enum TableError {
@@ -118,38 +119,63 @@ pub struct ExternalProcedure<'a> {
     pub name: &'a str,
     pub param_type: Type,
     pub takes_string: bool,
+    pub takes_reference: bool,
 }
 
-pub static EXTERNAL_PROCS: [ExternalProcedure; 6] = [
+pub static EXTERNAL_PROCS: [ExternalProcedure; 9] = [
     ExternalProcedure {
         name: "write",
         param_type: Type::Simple(SimpleType::Integer),
         takes_string: false,
+        takes_reference: false,
     },
     ExternalProcedure {
         name: "writeln",
         param_type: Type::Simple(SimpleType::Integer),
         takes_string: false,
+        takes_reference: false,
     },
     ExternalProcedure {
         name: "dbl_write",
         param_type: Type::Simple(SimpleType::Double),
         takes_string: false,
+        takes_reference: false,
     },
     ExternalProcedure {
         name: "dbl_writeln",
         param_type: Type::Simple(SimpleType::Double),
         takes_string: false,
+        takes_reference: false,
     },
     ExternalProcedure {
         name: "str_write",
         param_type: Type::Simple(SimpleType::Integer),
         takes_string: true,
+        takes_reference: false,
     },
     ExternalProcedure {
         name: "str_writeln",
         param_type: Type::Simple(SimpleType::Integer),
         takes_string: true,
+        takes_reference: false,
+    },
+    ExternalProcedure {
+        name: "inc",
+        param_type: Type::Simple(SimpleType::Integer),
+        takes_string: false,
+        takes_reference: true,
+    },
+    ExternalProcedure {
+        name: "dec",
+        param_type: Type::Simple(SimpleType::Integer),
+        takes_string: false,
+        takes_reference: true,
+    },
+    ExternalProcedure {
+        name: "readln",
+        param_type: Type::Simple(SimpleType::Integer),
+        takes_string: false,
+        takes_reference: true,
     },
 ];
 
@@ -159,17 +185,7 @@ pub struct ExternalFunction<'a> {
     pub return_type: Type,
 }
 
-pub static EXTERNAL_FUNCS: [ExternalFunction; 4] = [
-    ExternalFunction {
-        name: "inc",
-        param_type: Type::Simple(SimpleType::Integer),
-        return_type: Type::Simple(SimpleType::Integer),
-    },
-    ExternalFunction {
-        name: "dec",
-        param_type: Type::Simple(SimpleType::Integer),
-        return_type: Type::Simple(SimpleType::Integer),
-    },
+pub static EXTERNAL_FUNCS: [ExternalFunction; 2] = [
     ExternalFunction {
         name: "int",
         param_type: Type::Simple(SimpleType::Double),
@@ -220,7 +236,7 @@ impl<'a> LLVMGenerator<'a> {
                 parameters: vec![("_".to_string(), proc.param_type.clone())],
                 return_type: None,
             };
-            let proc_val = self.prototype(&prototype, true)?;
+            let proc_val = self.prototype(&prototype, proc.takes_string, proc.takes_reference)?;
             self.procedure_table.insert(
                 proc.name.to_string(),
                 ProcedureInfo {
@@ -230,6 +246,7 @@ impl<'a> LLVMGenerator<'a> {
                     },
                     value: proc_val,
                     takes_string: proc.takes_string,
+                    takes_reference: proc.takes_reference,
                 },
             );
         }
@@ -239,7 +256,7 @@ impl<'a> LLVMGenerator<'a> {
                 parameters: vec![("_".to_string(), func.param_type.clone())],
                 return_type: Some(func.return_type.clone()),
             };
-            let fn_val = self.prototype(&prototype, false)?;
+            let fn_val = self.prototype(&prototype, false, false)?;
             self.function_table.insert(
                 func.name.to_string(),
                 FunctionInfo {
@@ -361,14 +378,9 @@ impl<'a> LLVMGenerator<'a> {
         &self,
         prototype: &Prototype,
         takes_string: bool,
+        takes_reference: bool,
     ) -> GeneratorResult<FunctionValue<'a>> {
-        let param_types = if !takes_string {
-            prototype
-                .parameters
-                .iter()
-                .map(|p| self.r#type(p.1.clone()).into())
-                .collect::<Vec<BasicMetadataTypeEnum>>()
-        } else {
+        let param_types = if takes_string {
             let b: BasicMetadataTypeEnum = self
                 .context
                 .i8_type()
@@ -376,6 +388,19 @@ impl<'a> LLVMGenerator<'a> {
                 .as_basic_type_enum()
                 .into();
             vec![b]
+        } else if takes_reference {
+            let b: BasicMetadataTypeEnum = self
+                .r#type(prototype.parameters[0].1.clone())
+                .ptr_type(AddressSpace::default())
+                .as_basic_type_enum()
+                .into();
+            vec![b]
+        } else {
+            prototype
+                .parameters
+                .iter()
+                .map(|p| self.r#type(p.1.clone()).into())
+                .collect::<Vec<BasicMetadataTypeEnum>>()
         };
         let fn_type = match prototype.return_type {
             Some(ref t) => self
@@ -497,7 +522,7 @@ impl<'a> LLVMGenerator<'a> {
 
                     self.symbol_table.new_scope();
                     let cloned_decl = decl.clone();
-                    let function = self.prototype(&decl.prototype, false)?;
+                    let function = self.prototype(&decl.prototype, false, false)?;
                     self.function_table.insert(
                         decl.prototype.name.clone(),
                         FunctionInfo {
@@ -520,13 +545,14 @@ impl<'a> LLVMGenerator<'a> {
 
                     self.symbol_table.new_scope();
                     let cloned_decl = decl.clone();
-                    let procedure = self.prototype(&decl.prototype, false)?;
+                    let procedure = self.prototype(&decl.prototype, false, false)?;
                     self.procedure_table.insert(
                         decl.prototype.name.clone(),
                         ProcedureInfo {
                             declaration: cloned_decl,
                             value: procedure,
                             takes_string: false,
+                            takes_reference: false,
                         },
                     );
                     if let Some(body_block) = decl.body {
@@ -696,11 +722,7 @@ impl<'a> LLVMGenerator<'a> {
                     .context
                     .append_basic_block(self.current_function.unwrap(), "if.end");
                 let on_false_bb = if let Some(else_stmt) = false_branch {
-                    let starting_bb = self
-                        .current_function
-                        .unwrap()
-                        .get_last_basic_block()
-                        .unwrap();
+                    let starting_bb = self.builder.get_insert_block().unwrap();
                     let else_bb = self.context.prepend_basic_block(end_bb, "if.else");
                     self.builder.position_at_end(else_bb);
                     self.statement(*else_stmt)?;
@@ -818,15 +840,32 @@ impl<'a> LLVMGenerator<'a> {
                     declaration: ProcedureDeclaration { prototype, .. },
                     value: fn_val,
                     takes_string,
+                    takes_reference,
                 }) = self.procedure_table.get(&procedure_name)
                 {
-                    self.function_call(
-                        *fn_val,
-                        &procedure_name,
-                        prototype,
-                        &arguments,
-                        *takes_string,
-                    )?;
+                    if *takes_reference {
+                        match &arguments[0] {
+                            Expression::Variable(var_name) => {
+                                match self.symbol_table.find(&var_name) {
+                                    Some(SymbolInfo { ptr, .. }) => self.builder.build_call(
+                                        *fn_val,
+                                        &[ptr.as_basic_value_enum().into()],
+                                        "reffunc",
+                                    ),
+                                    None => Err("Undefined variable to reference function.")?,
+                                }
+                            }
+                            _ => Err("Argument to reference function must a variable.")?,
+                        };
+                    } else {
+                        self.function_call(
+                            *fn_val,
+                            &procedure_name,
+                            prototype,
+                            &arguments,
+                            *takes_string,
+                        )?;
+                    }
                 } else {
                     Err(format!("Undefined procedure '{}'.", procedure_name))?
                 }
@@ -1074,8 +1113,14 @@ impl<'a> LLVMGenerator<'a> {
                     value: fn_val,
                 }) = self.function_table.get(&function_name)
                 {
-                    self.function_call(*fn_val, &function_name, prototype, &arguments, false)?
-                        .unwrap()
+                    self.function_call(
+                        *fn_val,
+                        &function_name,
+                        prototype,
+                        &arguments,
+                        false,
+                    )?
+                    .unwrap()
                 } else {
                     Err(format!("Undefined procedure '{}'.", function_name))?
                 }
