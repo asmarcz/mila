@@ -794,6 +794,14 @@ impl<'a> LLVMGenerator<'a> {
                         Err(format!("Cannot assign to constant '{}'.", variable_name))?
                     }
                     let res = self.expression(value)?;
+                    if self.r#type(symbol_info.r#type.clone()) != res.get_type() {
+                        Err(format!(
+                            "Cannot assign to '{}', expected '{:#?}', got '{}' instead",
+                            variable_name,
+                            symbol_info.r#type,
+                            res.get_type()
+                        ))?
+                    }
                     let val: BasicValueEnum = match res {
                         BasicValueEnum::ArrayValue(_) => todo!(),
                         BasicValueEnum::IntValue(int_val) => int_val.into(),
