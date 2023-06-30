@@ -4,10 +4,17 @@ var x, y, z : double;
 var a, b : integer;
 
 begin
+	dbl_writeln(1.5 + 2);
+	writeln(a);
 	x := 3.14;
-	y := 3.;
+	y := float(3);
 	z := -0.5;
+	a := 7;
+	writeln(int(x));
+	writeln(inc(a));
+	writeln(dec(a));
+	writeln(int(y + z));
 	dbl_writeln(x);
-	dbl_write(y);
+	dbl_writeln(y);
 	dbl_write(z);
 end.
